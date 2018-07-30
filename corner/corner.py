@@ -4,9 +4,10 @@ from __future__ import print_function, absolute_import
 
 import logging
 import numpy as np
+from matplotlib.cm import viridis_r
 import matplotlib.pyplot as pl
 from matplotlib.ticker import MaxNLocator, NullLocator
-from matplotlib.colors import LinearSegmentedColormap, colorConverter
+from matplotlib.colors import LinearSegmentedColormap, colorConverter, ListedColormap
 from matplotlib.ticker import ScalarFormatter
 
 try:
@@ -24,7 +25,7 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
            truths=None, truth_color="#4682b4",
            scale_hist=False, quantiles=None, verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
-           hist_kwargs=None, **hist2d_kwargs):
+           hex=True, hist_kwargs=None, **hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
     multi-dimensional space. kwargs are passed to hist2d() or used for
@@ -109,6 +110,9 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
     reverse : bool
         If true, plot the corner plot starting in the upper-right corner instead 
         of the usual bottom-left corner
+
+    reverse : bool
+        If true, use hexbins instead of square bins
         
     max_n_ticks: int
         Maximum number of ticks to try to use
@@ -355,7 +359,7 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
                 y = y.compressed()
 
             hist2d(y, x, ax=ax, range=[range[j], range[i]], weights=weights,
-                   color=color, smooth=smooth, bins=[bins[j], bins[i]],
+                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex,
                    **hist2d_kwargs)
 
             if truths is not None:
@@ -469,7 +473,7 @@ def quantile(x, q, weights=None):
 def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
            ax=None, color=None, plot_datapoints=True, plot_density=True,
            plot_contours=True, no_fill_contours=False, fill_contours=False,
-           contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,
+           hex=True, contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,
            **kwargs):
     """
     Plot a 2-D histogram of samples.
@@ -516,6 +520,10 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
         adding the individual data points.
 
     """
+    hex = True
+
+    print("I'm in plot2d and hex is ",hex)
+
     if ax is None:
         ax = pl.gca()
 
@@ -534,12 +542,17 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
 
     # Choose the default "sigma" contour levels.
     if levels is None:
-        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
+#        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
+        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
 
     # This is the color map for the density plot, over-plotted to indicate the
     # density of the points near the center.
     density_cmap = LinearSegmentedColormap.from_list(
         "density_cmap", [color, (1, 1, 1, 0)])
+    density_cmap = viridis_r
+    my_cmap = density_cmap(np.arange(density_cmap.N))
+    my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
+    density_cmap = ListedColormap(my_cmap)
 
     # This color map is used to hide the points at the high density areas.
     white_cmap = LinearSegmentedColormap.from_list(
@@ -617,6 +630,7 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
         if data_kwargs is None:
             data_kwargs = dict()
         data_kwargs["color"] = data_kwargs.get("color", color)
+        data_kwargs["color"] = viridis_r(1.0)
         data_kwargs["ms"] = data_kwargs.get("ms", 2.0)
         data_kwargs["mec"] = data_kwargs.get("mec", "none")
         data_kwargs["alpha"] = data_kwargs.get("alpha", 0.1)
@@ -639,13 +653,19 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
     # Plot the density map. This can't be plotted at the same time as the
     # contour fills.
     elif plot_density:
-        ax.pcolor(X, Y, H.max() - H.T, cmap=density_cmap)
+        if hex == True:
+            print(bins)
+            hexes = ax.hexbin(x.flatten(), y.flatten(), cmap=density_cmap.reversed(),gridsize=[int(b/2) for b in bins])
+        else:
+            ax.pcolor(X, Y, H.max() - H.T, cmap=density_cmap)
+
 
     # Plot the contour edge colors.
     if plot_contours:
         if contour_kwargs is None:
             contour_kwargs = dict()
         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
+        contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(0.0)]
         ax.contour(X2, Y2, H2.T, V, **contour_kwargs)
 
     ax.set_xlim(range[0])

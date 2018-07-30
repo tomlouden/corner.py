@@ -4,7 +4,7 @@ from __future__ import print_function, absolute_import
 
 import logging
 import numpy as np
-from matplotlib.cm import viridis_r
+from matplotlib.cm import viridis_r, get_cmap
 import matplotlib.pyplot as pl
 from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter, ListedColormap
@@ -25,7 +25,7 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
            truths=None, truth_color="#4682b4",
            scale_hist=False, quantiles=None, verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
-           hex=True, hist_kwargs=None, **hist2d_kwargs):
+           hex=True, priors=[], hist_kwargs=None, **hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
     multi-dimensional space. kwargs are passed to hist2d() or used for
@@ -111,8 +111,11 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
         If true, plot the corner plot starting in the upper-right corner instead 
         of the usual bottom-left corner
 
-    reverse : bool
+    hex : bool
         If true, use hexbins instead of square bins
+
+    priors : iterable
+        A list of prior histograms to be overplotted on the diagonal axis
         
     max_n_ticks: int
         Maximum number of ticks to try to use
@@ -216,7 +219,7 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
 
     # Create a new figure if one wasn't provided.
     if fig is None:
-        fig, axes = pl.subplots(K, K, figsize=(dim, dim))
+        fig, axes = pl.subplots(K, K, figsize=(dim, dim),aspect="equal")
     else:
         try:
             axes = np.array(fig.axes).reshape((K, K))
@@ -275,6 +278,10 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
             if verbose:
                 print("Quantiles:")
                 print([item for item in zip(quantiles, qvalues)])
+
+        ax.plot(priors[0][i],priors[1][i],color=get_cmap('viridis')(0),zorder=-1)
+        ax.plot(priors[0][i],priors[1][i],color=get_cmap('viridis')(0),zorder=3,alpha=0.5)
+        ax.fill(priors[0][i],priors[1][i],color=(0.26700400000000002*0.5 +0.5, 0.0048739999999999999*0.5 +0.5, 0.32941500000000001*0.5 +0.5, 1.0),zorder=-1)
 
         if show_titles:
             title = None
@@ -344,23 +351,49 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
             else:
                 if reverse:
                     ax = axes[K-i-1, K-j-1]
+                    ax2 = axes[K-j-1, K-i-1]
                 else:
                     ax = axes[i, j]
-            if j > i:
-                ax.set_frame_on(False)
-                ax.set_xticks([])
-                ax.set_yticks([])
-                continue
-            elif j == i:
+                    ax2 = axes[j, i]
+#            if j > i:
+#                ax.set_frame_on(False)
+#                ax.set_xticks([])
+#                ax.set_yticks([])
+#                continue
+            if j == i:
                 continue
 
             # Deal with masked arrays.
             if hasattr(y, "compressed"):
                 y = y.compressed()
 
-            hist2d(y, x, ax=ax, range=[range[j], range[i]], weights=weights,
-                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex,
-                   **hist2d_kwargs)
+            else:
+                if j < i:
+                    X2, Y2, H2T, V, r1, r2 = hist2d(y, x, ax=ax, range=[range[j], range[i]], weights=weights,
+                           color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex,
+                           **hist2d_kwargs)
+                    bl = np.outer(priors[1][j],priors[1][i])
+
+                    density_cmap = viridis_r
+                    my_cmap = density_cmap(np.arange(density_cmap.N))
+                    my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
+                    density_cmap = ListedColormap(my_cmap)
+
+                    ax2.imshow(bl,extent=[np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])])],aspect="auto",cmap=density_cmap.reversed())
+
+                    # Plot the contour edge colors.
+                    plot_contours = True
+                    contour_kwargs = None
+                    if plot_contours:
+                        if contour_kwargs is None:
+                            contour_kwargs = dict()
+                        contour_kwargs["colors"] = contour_kwargs.get("colors", color)
+                        contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(1.0)]
+                        ax2.contour(Y2, X2, H2T.T, V, **contour_kwargs)
+                    ax2.set_xlim(r2)
+                    ax2.set_ylim(r1)
+
+
 
             if truths is not None:
                 if truths[i] is not None and truths[j] is not None:
@@ -520,9 +553,6 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
         adding the individual data points.
 
     """
-    hex = True
-
-    print("I'm in plot2d and hex is ",hex)
 
     if ax is None:
         ax = pl.gca()
@@ -654,7 +684,6 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
     # contour fills.
     elif plot_density:
         if hex == True:
-            print(bins)
             hexes = ax.hexbin(x.flatten(), y.flatten(), cmap=density_cmap.reversed(),gridsize=[int(b/2) for b in bins])
         else:
             ax.pcolor(X, Y, H.max() - H.T, cmap=density_cmap)
@@ -665,8 +694,10 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
         if contour_kwargs is None:
             contour_kwargs = dict()
         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
-        contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(0.0)]
+        contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(1.0)]
         ax.contour(X2, Y2, H2.T, V, **contour_kwargs)
 
     ax.set_xlim(range[0])
     ax.set_ylim(range[1])
+
+    return X2, Y2, H2.T, V, range[0], range[1]

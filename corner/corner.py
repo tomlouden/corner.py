@@ -15,7 +15,7 @@ try:
 except ImportError:
     gaussian_filter = None
 
-__all__ = ["corner", "hist2d", "quantile"]
+__all__ = ["corner", "hist2d", "quantile","gen_contours"]
 
 
 def corner(xs, bins=20, range=None, weights=None, color="k",
@@ -369,7 +369,7 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
 
             else:
                 if j < i:
-                    X2, Y2, H2T, V, r1, r2 = hist2d(y, x, ax=ax, range=[range[j], range[i]], weights=weights,
+                    X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, range=[range[j], range[i]], weights=weights,
                            color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex,
                            **hist2d_kwargs)
                     bl = np.outer(priors[1][j],priors[1][i])
@@ -379,7 +379,13 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
                     my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
                     density_cmap = ListedColormap(my_cmap)
 
-                    ax2.imshow(bl,extent=[np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])])],aspect="auto",cmap=density_cmap.reversed())
+                    xedge = np.hstack((priors[0][i][:-1]-0.5*np.diff(priors[0][i]), priors[0][i][-2:] +0.5*np.diff(priors[0][i])[-1])) 
+                    yedge = np.hstack((priors[0][j][:-1]-0.5*np.diff(priors[0][j]), priors[0][j][-2:] +0.5*np.diff(priors[0][j])[-1]))
+
+
+                    HP2, XP2, YP2, VP = gen_contours(bl,yedge,xedge,smooth=smooth)
+
+#                    ax2.imshow(bl,extent=[np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])])],aspect="auto",cmap=density_cmap.reversed())
 
                     # Plot the contour edge colors.
                     plot_contours = True
@@ -389,7 +395,31 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
                             contour_kwargs = dict()
                         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
                         contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(1.0)]
-                        ax2.contour(Y2, X2, H2T.T, V, **contour_kwargs)
+#                        ax2.contour(Y2, X2, H2, V, **contour_kwargs)
+                        print("HP2",HP2)
+                        print("XP2",XP2)
+
+#                    levels = None
+#                    if levels is None:
+#                        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
+
+#                    rgba_color = colorConverter.to_rgba("k")
+#                    contour_cmap = [list(rgba_color) for l in levels] + [rgba_color]
+#                    for i, l in enumerate(levels):
+#                        contour_cmap[i][-1] *= float(i) / (len(levels)+1)
+
+#                    contourf_kwargs = None
+#                    if contourf_kwargs is None:
+#                        contourf_kwargs = dict()
+#                    contourf_kwargs["colors"] = contourf_kwargs.get("colors", contour_cmap)
+#                    contourf_kwargs["antialiased"] = contourf_kwargs.get("antialiased",
+#                                                                         False)
+#                    ax2.contour(YP2, XP2, HP2, VP, **contour_kwargs)
+#                    ax2.contourf(YP2, XP2, HP2.T, np.concatenate([[0], VP, [HP2.max()*(1+1e-4)]]),
+#                                **contourf_kwargs)
+
+
+
                     ax2.set_xlim(r2)
                     ax2.set_ylim(r1)
 
@@ -502,6 +532,67 @@ def quantile(x, q, weights=None):
         cdf = np.append(0, cdf)
         return np.interp(q, cdf, x[idx]).tolist()
 
+def gen_contours(H,X,Y,smooth=None,levels=None):
+
+    print("in gen contour",np.shape(H),np.shape(X),np.shape(Y))
+
+    # Choose the default "sigma" contour levels.
+    if levels is None:
+#        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
+        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
+
+    if smooth is not None:
+        if gaussian_filter is None:
+            raise ImportError("Please install scipy for smoothing")
+        H = gaussian_filter(H, smooth)
+
+    # Compute the density levels.
+    Hflat = H.flatten()
+    inds = np.argsort(Hflat)[::-1]
+    Hflat = Hflat[inds]
+    sm = np.cumsum(Hflat)
+    sm /= sm[-1]
+    V = np.empty(len(levels))
+    for i, v0 in enumerate(levels):
+        try:
+            V[i] = Hflat[sm <= v0][-1]
+        except:
+            V[i] = Hflat[0]
+    V.sort()
+    m = np.diff(V) == 0
+    if np.any(m):
+        logging.warning("Too few points to create valid contours")
+    while np.any(m):
+        V[np.where(m)[0][0]] *= 1.0 - 1e-4
+        m = np.diff(V) == 0
+    V.sort()
+
+    # Compute the bin centers.
+    X1, Y1 = 0.5 * (X[1:] + X[:-1]), 0.5 * (Y[1:] + Y[:-1])
+
+    # Extend the array for the sake of the contours at the plot edges.
+    H2 = H.min() + np.zeros((H.shape[0] + 4, H.shape[1] + 4))
+    H2[2:-2, 2:-2] = H
+    H2[2:-2, 1] = H[:, 0]
+    H2[2:-2, -2] = H[:, -1]
+    H2[1, 2:-2] = H[0]
+    H2[-2, 2:-2] = H[-1]
+    H2[1, 1] = H[0, 0]
+    H2[1, -2] = H[0, -1]
+    H2[-2, 1] = H[-1, 0]
+    H2[-2, -2] = H[-1, -1]
+    X2 = np.concatenate([
+        X1[0] + np.array([-2, -1]) * np.diff(X1[:2]),
+        X1,
+        X1[-1] + np.array([1, 2]) * np.diff(X1[-2:]),
+    ])
+    Y2 = np.concatenate([
+        Y1[0] + np.array([-2, -1]) * np.diff(Y1[:2]),
+        Y1,
+        Y1[-1] + np.array([1, 2]) * np.diff(Y1[-2:]),
+    ])
+
+    return H2, X2, Y2, V
 
 def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
            ax=None, color=None, plot_datapoints=True, plot_density=True,
@@ -570,11 +661,6 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
     if color is None:
         color = "k"
 
-    # Choose the default "sigma" contour levels.
-    if levels is None:
-#        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
-        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
-
     # This is the color map for the density plot, over-plotted to indicate the
     # density of the points near the center.
     density_cmap = LinearSegmentedColormap.from_list(
@@ -590,6 +676,13 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
 
     # This "color map" is the list of colors for the contour levels if the
     # contours are filled.
+
+    # Choose the default "sigma" contour levels.
+    if levels is None:
+#        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
+        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
+
+
     rgba_color = colorConverter.to_rgba(color)
     contour_cmap = [list(rgba_color) for l in levels] + [rgba_color]
     for i, l in enumerate(levels):
@@ -605,56 +698,7 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
                          "have no dynamic range. You could try using the "
                          "'range' argument.")
 
-    if smooth is not None:
-        if gaussian_filter is None:
-            raise ImportError("Please install scipy for smoothing")
-        H = gaussian_filter(H, smooth)
-
-    # Compute the density levels.
-    Hflat = H.flatten()
-    inds = np.argsort(Hflat)[::-1]
-    Hflat = Hflat[inds]
-    sm = np.cumsum(Hflat)
-    sm /= sm[-1]
-    V = np.empty(len(levels))
-    for i, v0 in enumerate(levels):
-        try:
-            V[i] = Hflat[sm <= v0][-1]
-        except:
-            V[i] = Hflat[0]
-    V.sort()
-    m = np.diff(V) == 0
-    if np.any(m):
-        logging.warning("Too few points to create valid contours")
-    while np.any(m):
-        V[np.where(m)[0][0]] *= 1.0 - 1e-4
-        m = np.diff(V) == 0
-    V.sort()
-
-    # Compute the bin centers.
-    X1, Y1 = 0.5 * (X[1:] + X[:-1]), 0.5 * (Y[1:] + Y[:-1])
-
-    # Extend the array for the sake of the contours at the plot edges.
-    H2 = H.min() + np.zeros((H.shape[0] + 4, H.shape[1] + 4))
-    H2[2:-2, 2:-2] = H
-    H2[2:-2, 1] = H[:, 0]
-    H2[2:-2, -2] = H[:, -1]
-    H2[1, 2:-2] = H[0]
-    H2[-2, 2:-2] = H[-1]
-    H2[1, 1] = H[0, 0]
-    H2[1, -2] = H[0, -1]
-    H2[-2, 1] = H[-1, 0]
-    H2[-2, -2] = H[-1, -1]
-    X2 = np.concatenate([
-        X1[0] + np.array([-2, -1]) * np.diff(X1[:2]),
-        X1,
-        X1[-1] + np.array([1, 2]) * np.diff(X1[-2:]),
-    ])
-    Y2 = np.concatenate([
-        Y1[0] + np.array([-2, -1]) * np.diff(Y1[:2]),
-        Y1,
-        Y1[-1] + np.array([1, 2]) * np.diff(Y1[-2:]),
-    ])
+    H2, X2, Y2, V = gen_contours(H,X,Y,smooth=smooth,levels=levels)
 
     if plot_datapoints:
         if data_kwargs is None:
@@ -695,9 +739,10 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
             contour_kwargs = dict()
         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
         contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(1.0)]
+        print("in plot2d", np.shape(X2),np.shape(Y2),np.shape(H2.T),np.shape(V))
         ax.contour(X2, Y2, H2.T, V, **contour_kwargs)
 
     ax.set_xlim(range[0])
     ax.set_ylim(range[1])
 
-    return X2, Y2, H2.T, V, range[0], range[1]
+    return X2, Y2, H2, V, range[0], range[1]

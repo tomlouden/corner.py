@@ -10,6 +10,8 @@ from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter, ListedColormap
 from matplotlib.ticker import ScalarFormatter
 from scipy import interpolate
+from posterior import hpd, mode
+import math
 
 try:
     from scipy.ndimage import gaussian_filter
@@ -19,14 +21,14 @@ except ImportError:
 __all__ = ["corner", "hist2d", "quantile","gen_contours"]
 
 
-def corner(xs, bins=20, drange=None, weights=None, color="k",
+def corner(xs, bins=20, drange=None, weights=None, color="C1",
            smooth=None, smooth1d=None,
            labels=None, label_kwargs=None,
-           show_titles=False, title_fmt=".2f", title_kwargs=None,
+           show_titles=True, title_fmt=".2f", title_kwargs=None,
            truths=None, truth_color="#4682b4",
-           scale_hist=False, quantiles=None, verbose=False, fig=None,
+           scale_hist=False, quantiles=[0.68], verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
-           hex=True, priors=[], set_lims="prior",
+           hex=True, priors=[], set_lims="prior", use_hpd = True,
            hist_kwargs=None, **hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
@@ -123,6 +125,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="k",
         Set the axis limits from the "priors" or from the "data"
         If you're running a multinest it makes more sense to set prior
         anything else use data set.
+
+    use_hpd : bool
+        use the highest posterior density region when reporting the quantiles
         
     max_n_ticks: int
         Maximum number of ticks to try to use
@@ -264,6 +269,61 @@ def corner(xs, bins=20, drange=None, weights=None, color="k",
             if reverse:
                 ax = axes[K-i-1, K-i-1]
             else:
+                ax = axes[0, i]
+        if show_titles:
+            title = None
+            if title_fmt is not None:
+                # Compute the quantiles for the title. This might redo
+                # unneeded computation but who cares.
+
+                if use_hpd == True:
+                    my_mode = mode(x)
+                    my_hpd = hpd(x,conf=0.68)
+                    q_50 = my_mode
+                    q_16, q_84 = my_hpd
+                    d = my_hpd - my_mode
+                    dd = np.min(abs(d))
+                    ld = np.log10(dd)
+                    lld = int(-1*np.sign(ld)*(math.ceil(abs(ld))) )
+                    if lld <0:
+                        lld += 1
+                    rm = np.round(my_mode,lld)
+                    re = np.round(d,lld)
+                    title = "${:.{prec}f}_{{{:.{prec}f}}}^{{+{:.{prec}f}}}$".format(rm,re[0],re[1],prec=lld)
+                else:
+                    q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84],
+                                                weights=weights)
+                    q_m, q_p = q_50-q_16, q_84-q_50
+                    # Format the quantile display.
+                    fmt = "{{0:{0}}}".format(title_fmt).format
+                    title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"
+                    title = title.format(fmt(q_50), fmt(q_m), fmt(q_p))
+
+                # Add in the column name if it's given.
+                if labels is not None:
+                    title = "{0} = {1}".format(labels[i], title)
+
+            elif labels is not None:
+                title = "{0}".format(labels[i])
+
+            if title is not None:
+                if reverse:
+                    ax.set_xlabel(title, **title_kwargs)
+                else:
+                    ax.set_title(title, **title_kwargs)
+
+
+    for i, x in enumerate(xs):
+        # Deal with masked arrays.
+        if hasattr(x, "compressed"):
+            x = x.compressed()
+
+        if np.shape(xs)[0] == 1:
+            ax = axes
+        else:
+            if reverse:
+                ax = axes[K-i-1, K-i-1]
+            else:
                 ax = axes[i, i]
         # Plot the histograms.
         if smooth1d is None:
@@ -284,9 +344,17 @@ def corner(xs, bins=20, drange=None, weights=None, color="k",
 
         # Plot quantiles if wanted.
         if len(quantiles) > 0:
-            qvalues = quantile(x, quantiles, weights=weights)
-            for q in qvalues:
-                ax.axvline(q, ls="dashed", color=color)
+            if use_hpd == True:
+                for q in quantiles:
+                    myqs = hpd(x,conf=q)
+                    mymode = mode(x)
+                    for qq in myqs:
+                        ax.axvline(qq, ls="dashed", color=color)
+                    ax.axvline(mymode, ls="solid", color=color)
+            else:
+                qvalues = quantile(x, quantiles, weights=weights)
+                for q in qvalues:
+                    ax.axvline(q, ls="dashed", color=color)
 
             if verbose:
                 print("Quantiles:")
@@ -295,33 +363,6 @@ def corner(xs, bins=20, drange=None, weights=None, color="k",
         ax.plot(priors[0][i],priors[1][i],color=get_cmap('viridis')(0),zorder=-1)
         ax.plot(priors[0][i],priors[1][i],color=get_cmap('viridis')(0),zorder=3,alpha=0.5)
         ax.fill(priors[0][i],priors[1][i],color=(0.26700400000000002*0.5 +0.5, 0.0048739999999999999*0.5 +0.5, 0.32941500000000001*0.5 +0.5, 1.0),zorder=-1)
-
-        if show_titles:
-            title = None
-            if title_fmt is not None:
-                # Compute the quantiles for the title. This might redo
-                # unneeded computation but who cares.
-                q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84],
-                                            weights=weights)
-                q_m, q_p = q_50-q_16, q_84-q_50
-
-                # Format the quantile display.
-                fmt = "{{0:{0}}}".format(title_fmt).format
-                title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"
-                title = title.format(fmt(q_50), fmt(q_m), fmt(q_p))
-
-                # Add in the column name if it's given.
-                if labels is not None:
-                    title = "{0} = {1}".format(labels[i], title)
-
-            elif labels is not None:
-                title = "{0}".format(labels[i])
-
-            if title is not None:
-                if reverse:
-                    ax.set_xlabel(title, **title_kwargs)
-                else:
-                    ax.set_title(title, **title_kwargs)
 
         # Set up the axes.
 
@@ -373,11 +414,12 @@ def corner(xs, bins=20, drange=None, weights=None, color="k",
                 else:
                     ax = axes[i, j]
                     ax2 = axes[j, i]
-#            if j > i:
-#                ax.set_frame_on(False)
-#                ax.set_xticks([])
-#                ax.set_yticks([])
-#                continue
+            if priors == []:
+                if j > i:
+                    ax.set_frame_on(False)
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    continue
             if j == i:
                 continue
 
@@ -405,7 +447,6 @@ def corner(xs, bins=20, drange=None, weights=None, color="k",
                            color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]],
                            **hist2d_kwargs)
 
-#                    bl = np.outer(p2,p1)
                     bl = np.outer(new2,new1)
 
                     p1f = False
@@ -420,15 +461,10 @@ def corner(xs, bins=20, drange=None, weights=None, color="k",
                     my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
                     density_cmap = ListedColormap(my_cmap)
 
-#                    xedge = np.hstack((priors[0][i][:-1]-0.5*np.diff(priors[0][i]), priors[0][i][-2:] +0.5*np.diff(priors[0][i])[-1])) 
-#                    yedge = np.hstack((priors[0][j][:-1]-0.5*np.diff(priors[0][j]), priors[0][j][-2:] +0.5*np.diff(priors[0][j])[-1]))
-
                     xedge = np.hstack((rr2[:-1]-0.5*np.diff(rr2), rr2[-2:] +0.5*np.diff(rr2)[-1]))
                     yedge = np.hstack((rr1[:-1]-0.5*np.diff(rr1), rr1[-2:] +0.5*np.diff(rr1)[-1]))
 
                     HP2, XP2, YP2, VP = gen_contours(bl,yedge,xedge)
-
-#                    ax2.imshow(bl,extent=[np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])])],aspect="auto",cmap=density_cmap.reversed())
 
                     ax2.set_facecolor(density_cmap(0.9))
                     if (p1f == False) & (p2f == False):
@@ -711,7 +747,7 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
 
     # Set up the default plotting arguments.
     if color is None:
-        color = "k"
+        color = "C1"
 
     # This is the color map for the density plot, over-plotted to indicate the
     # density of the points near the center.

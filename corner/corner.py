@@ -9,6 +9,7 @@ import matplotlib.pyplot as pl
 from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter, ListedColormap
 from matplotlib.ticker import ScalarFormatter
+from scipy import interpolate
 
 try:
     from scipy.ndimage import gaussian_filter
@@ -18,14 +19,15 @@ except ImportError:
 __all__ = ["corner", "hist2d", "quantile","gen_contours"]
 
 
-def corner(xs, bins=20, range=None, weights=None, color="k",
+def corner(xs, bins=20, drange=None, weights=None, color="k",
            smooth=None, smooth1d=None,
            labels=None, label_kwargs=None,
            show_titles=False, title_fmt=".2f", title_kwargs=None,
            truths=None, truth_color="#4682b4",
            scale_hist=False, quantiles=None, verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
-           hex=True, priors=[], hist_kwargs=None, **hist2d_kwargs):
+           hex=True, priors=[], set_lims="prior",
+           hist_kwargs=None, **hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
     multi-dimensional space. kwargs are passed to hist2d() or used for
@@ -75,9 +77,9 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
     title_kwargs : dict
         Any extra keyword arguments to send to the `set_title` command.
 
-    range : iterable (ndim,)
+    drange : iterable (ndim,)
         A list where each element is either a length 2 tuple containing
-        lower and upper bounds or a float in range (0., 1.)
+        lower and upper bounds or a float in drange (0., 1.)
         giving the fraction of samples to include in bounds, e.g.,
         [(0.,10.), (1.,5), 0.999, etc.].
         If a fraction, the bounds are chosen to be equal-tailed.
@@ -116,6 +118,11 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
 
     priors : iterable
         A list of prior histograms to be overplotted on the diagonal axis
+
+    set_lims : str
+        Set the axis limits from the "priors" or from the "data"
+        If you're running a multinest it makes more sense to set prior
+        anything else use data set.
         
     max_n_ticks: int
         Maximum number of ticks to try to use
@@ -166,43 +173,49 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
         if xs.shape[1] != weights.shape[0]:
             raise ValueError("Lengths of weights must match number of samples")
 
-    # Parse the parameter ranges.
-    if range is None:
+    # Parse the parameter dranges.
+    if drange is None:
         if "extents" in hist2d_kwargs:
             logging.warn("Deprecated keyword argument 'extents'. "
                          "Use 'range' instead.")
-            range = hist2d_kwargs.pop("extents")
+            drange = hist2d_kwargs.pop("extents")
         else:
-            range = [[x.min(), x.max()] for x in xs]
+            drange = [[x.min(), x.max()] for x in xs]
             # Check for parameters that never change.
-            m = np.array([e[0] == e[1] for e in range], dtype=bool)
+            m = np.array([e[0] == e[1] for e in drange], dtype=bool)
             if np.any(m):
                 raise ValueError(("It looks like the parameter(s) in "
-                                  "column(s) {0} have no dynamic range. "
+                                  "column(s) {0} have no dynamic drange. "
                                   "Please provide a `range` argument.")
                                  .format(", ".join(map(
                                      "{0}".format, np.arange(len(m))[m]))))
 
     else:
-        # If any of the extents are percentiles, convert them to ranges.
+        # If any of the extents are percentiles, convert them to dranges.
         # Also make sure it's a normal list.
-        range = list(range)
-        for i, _ in enumerate(range):
+        drange = list(drange)
+        for i, _ in enumerate(drange):
             try:
-                emin, emax = range[i]
+                emin, emax = drange[i]
             except TypeError:
                 q = [0.5 - 0.5*range[i], 0.5 + 0.5*range[i]]
-                range[i] = quantile(xs[i], q, weights=weights)
+                drange[i] = quantile(xs[i], q, weights=weights)
 
-    if len(range) != xs.shape[0]:
-        raise ValueError("Dimension mismatch between samples and range")
+    if len(drange) != xs.shape[0]:
+        raise ValueError("Dimension mismatch between samples and drange")
+
+    prange = []
+    for i in range(0,len(priors[0])):
+        p = priors[0][i]
+        p = p[np.isfinite(p)]
+        prange += [[p.min(),p.max()]]
 
     # Parse the bin specifications.
     try:
-        bins = [int(bins) for _ in range]
+        bins = [int(bins) for _ in drange]
     except TypeError:
-        if len(bins) != len(range):
-            raise ValueError("Dimension mismatch between bins and range")
+        if len(bins) != len(drange):
+            raise ValueError("Dimension mismatch between bins and drange")
 
     # Some magic numbers for pretty axis layout.
     K = len(xs)
@@ -255,12 +268,12 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
         # Plot the histograms.
         if smooth1d is None:
             n, _, _ = ax.hist(x, bins=bins[i], weights=weights,
-                              range=np.sort(range[i]), **hist_kwargs)
+                              range=np.sort(drange[i]), **hist_kwargs)
         else:
             if gaussian_filter is None:
                 raise ImportError("Please install scipy for smoothing")
             n, b = np.histogram(x, bins=bins[i], weights=weights,
-                                range=np.sort(range[i]))
+                                range=np.sort(drange[i]))
             n = gaussian_filter(n, smooth1d)
             x0 = np.array(list(zip(b[:-1], b[1:]))).flatten()
             y0 = np.array(list(zip(n, n))).flatten()
@@ -311,7 +324,12 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
                     ax.set_title(title, **title_kwargs)
 
         # Set up the axes.
-        ax.set_xlim(range[i])
+
+        if set_lims == "prior":
+            ax.set_xlim(prange[i])
+        else:
+            ax.set_xlim(drange[i])
+
         if scale_hist:
             maxn = np.max(n)
             ax.set_ylim(-0.1 * maxn, 1.1 * maxn)
@@ -369,23 +387,75 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
 
             else:
                 if j < i:
-                    X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, range=[range[j], range[i]], weights=weights,
-                           color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex,
+
+                    p1 = priors[1][j]
+                    p2 = priors[1][i]
+
+                    md1 = np.min(np.diff(priors[0][j]))
+                    rr1 = np.arange(np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])]),md1)
+                    f1 = interpolate.interp1d(priors[0][j][np.isfinite(priors[0][j])], priors[1][j][np.isfinite(priors[0][j])],kind="cubic")
+                    new1 = f1(rr1)
+
+                    md2 = np.min(np.diff(priors[0][i]))
+                    rr2 = np.arange(np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),md2)
+                    f2 = interpolate.interp1d(priors[0][i][np.isfinite(priors[0][i])], priors[1][i][np.isfinite(priors[0][i])],kind="cubic")
+                    new2 = f2(rr2)
+
+                    X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, drange=[drange[j], drange[i]], weights=weights,
+                           color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]],
                            **hist2d_kwargs)
-                    bl = np.outer(priors[1][j],priors[1][i])
+
+#                    bl = np.outer(p2,p1)
+                    bl = np.outer(new2,new1)
+
+                    p1f = False
+                    p2f = False
+                    if ((round(p1[1],2) == round(p1[-2],2)) & (round(p1[1],2) == round(p1[int(len(p1)/2)],2) )):
+                        p1f = True
+                    if ((round(p2[1],2) == round(p2[-2],2)) & (round(p2[1],2) == round(p2[int(len(p2)/2)],2) )):
+                        p2f = True
 
                     density_cmap = viridis_r
                     my_cmap = density_cmap(np.arange(density_cmap.N))
                     my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
                     density_cmap = ListedColormap(my_cmap)
 
-                    xedge = np.hstack((priors[0][i][:-1]-0.5*np.diff(priors[0][i]), priors[0][i][-2:] +0.5*np.diff(priors[0][i])[-1])) 
-                    yedge = np.hstack((priors[0][j][:-1]-0.5*np.diff(priors[0][j]), priors[0][j][-2:] +0.5*np.diff(priors[0][j])[-1]))
+#                    xedge = np.hstack((priors[0][i][:-1]-0.5*np.diff(priors[0][i]), priors[0][i][-2:] +0.5*np.diff(priors[0][i])[-1])) 
+#                    yedge = np.hstack((priors[0][j][:-1]-0.5*np.diff(priors[0][j]), priors[0][j][-2:] +0.5*np.diff(priors[0][j])[-1]))
 
+                    xedge = np.hstack((rr2[:-1]-0.5*np.diff(rr2), rr2[-2:] +0.5*np.diff(rr2)[-1]))
+                    yedge = np.hstack((rr1[:-1]-0.5*np.diff(rr1), rr1[-2:] +0.5*np.diff(rr1)[-1]))
 
-                    HP2, XP2, YP2, VP = gen_contours(bl,yedge,xedge,smooth=smooth)
+                    HP2, XP2, YP2, VP = gen_contours(bl,yedge,xedge)
 
 #                    ax2.imshow(bl,extent=[np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])])],aspect="auto",cmap=density_cmap.reversed())
+
+                    ax2.set_facecolor(density_cmap(0.9))
+                    if (p1f == False) & (p2f == False):
+                        ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=["white"],antialiased=False)
+                        ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=[density_cmap(0.5)],antialiased=False)
+                        ax2.contourf(YP2, XP2, HP2.T, [VP[1],HP2.max()*(1+1e-4)],colors=[density_cmap(0.0)],antialiased=False)
+                    if (p1f == True) & (p2f == True):
+                        ax2.set_facecolor(density_cmap(0.0))
+                    if (p1f == True) & (p2f == False):
+                        sm = np.cumsum(new2)
+                        sm /= sm[-1]
+                        in1 = np.argmin(abs(sm-0.025))
+                        in2 = np.argmin(abs(sm-0.975))
+                        in3 = np.argmin(abs(sm-0.16))
+                        in4 = np.argmin(abs(sm-0.84))
+                        ax2.axvspan(rr2[in1],rr2[in2],color=density_cmap(0.5))
+                        ax2.axvspan(rr2[in3],rr2[in4],color=density_cmap(0.0))
+
+                    if (p1f == False) & (p2f == True):
+                        sm = np.cumsum(new1)
+                        sm /= sm[-1]
+                        in1 = np.argmin(abs(sm-0.025))
+                        in2 = np.argmin(abs(sm-0.975))
+                        in3 = np.argmin(abs(sm-0.16))
+                        in4 = np.argmin(abs(sm-0.84))
+                        ax2.axhspan(rr1[in1],rr1[in2],color=density_cmap(0.5))
+                        ax2.axhspan(rr1[in3],rr1[in4],color=density_cmap(0.0))
 
                     # Plot the contour edge colors.
                     plot_contours = True
@@ -395,35 +465,19 @@ def corner(xs, bins=20, range=None, weights=None, color="k",
                             contour_kwargs = dict()
                         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
                         contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(1.0)]
-#                        ax2.contour(Y2, X2, H2, V, **contour_kwargs)
-                        print("HP2",HP2)
-                        print("XP2",XP2)
+                        ax2.contour(Y2, X2, H2, V, **contour_kwargs)
 
-#                    levels = None
-#                    if levels is None:
-#                        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
+                    if set_lims == "prior":
+                        ax2.set_xlim(prange[i])
+                        ax2.set_ylim(prange[j])
+                        ax.set_xlim(prange[j])
+                        ax.set_ylim(prange[i])
 
-#                    rgba_color = colorConverter.to_rgba("k")
-#                    contour_cmap = [list(rgba_color) for l in levels] + [rgba_color]
-#                    for i, l in enumerate(levels):
-#                        contour_cmap[i][-1] *= float(i) / (len(levels)+1)
-
-#                    contourf_kwargs = None
-#                    if contourf_kwargs is None:
-#                        contourf_kwargs = dict()
-#                    contourf_kwargs["colors"] = contourf_kwargs.get("colors", contour_cmap)
-#                    contourf_kwargs["antialiased"] = contourf_kwargs.get("antialiased",
-#                                                                         False)
-#                    ax2.contour(YP2, XP2, HP2, VP, **contour_kwargs)
-#                    ax2.contourf(YP2, XP2, HP2.T, np.concatenate([[0], VP, [HP2.max()*(1+1e-4)]]),
-#                                **contourf_kwargs)
-
-
-
-                    ax2.set_xlim(r2)
-                    ax2.set_ylim(r1)
-
-
+                    else:
+                        ax2.set_xlim(r2)
+                        ax2.set_ylim(r1)
+                        ax.set_xlim(r1)
+                        ax.set_ylim(r2)
 
             if truths is not None:
                 if truths[i] is not None and truths[j] is not None:
@@ -495,7 +549,7 @@ def quantile(x, q, weights=None):
        The samples.
 
     q : array_like[nquantiles,]
-       The list of quantiles to compute. These should all be in the range
+       The list of quantiles to compute. These should all be in the drange
        ``[0, 1]``.
 
     weights : Optional[array_like[nsamples,]]
@@ -533,8 +587,6 @@ def quantile(x, q, weights=None):
         return np.interp(q, cdf, x[idx]).tolist()
 
 def gen_contours(H,X,Y,smooth=None,levels=None):
-
-    print("in gen contour",np.shape(H),np.shape(X),np.shape(Y))
 
     # Choose the default "sigma" contour levels.
     if levels is None:
@@ -594,7 +646,7 @@ def gen_contours(H,X,Y,smooth=None,levels=None):
 
     return H2, X2, Y2, V
 
-def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
+def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
            ax=None, color=None, plot_datapoints=True, plot_density=True,
            plot_contours=True, no_fill_contours=False, fill_contours=False,
            hex=True, contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,
@@ -648,14 +700,14 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
     if ax is None:
         ax = pl.gca()
 
-    # Set the default range based on the data range if not provided.
-    if range is None:
+    # Set the default drange based on the data drange if not provided.
+    if drange is None:
         if "extent" in kwargs:
             logging.warn("Deprecated keyword argument 'extent'. "
                          "Use 'range' instead.")
-            range = kwargs["extent"]
+            drange = kwargs["extent"]
         else:
-            range = [[x.min(), x.max()], [y.min(), y.max()]]
+            drange = [[x.min(), x.max()], [y.min(), y.max()]]
 
     # Set up the default plotting arguments.
     if color is None:
@@ -691,11 +743,11 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
     # We'll make the 2D histogram to directly estimate the density.
     try:
         H, X, Y = np.histogram2d(x.flatten(), y.flatten(), bins=bins,
-                                 range=list(map(np.sort, range)),
+                                 range=list(map(np.sort, drange)),
                                  weights=weights)
     except ValueError:
         raise ValueError("It looks like at least one of your sample columns "
-                         "have no dynamic range. You could try using the "
+                         "have no dynamic drange. You could try using the "
                          "'range' argument.")
 
     H2, X2, Y2, V = gen_contours(H,X,Y,smooth=smooth,levels=levels)
@@ -739,10 +791,6 @@ def hist2d(x, y, bins=20, range=None, weights=None, levels=None, smooth=None,
             contour_kwargs = dict()
         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
         contour_kwargs["colors"] = [viridis_r(1.0),viridis_r(1.0)]
-        print("in plot2d", np.shape(X2),np.shape(Y2),np.shape(H2.T),np.shape(V))
         ax.contour(X2, Y2, H2.T, V, **contour_kwargs)
 
-    ax.set_xlim(range[0])
-    ax.set_ylim(range[1])
-
-    return X2, Y2, H2, V, range[0], range[1]
+    return X2, Y2, H2, V, drange[0], drange[1]

@@ -26,7 +26,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
            labels=None, label_kwargs=None,
            show_titles=True, title_fmt=".2f", title_kwargs=None,
            truths=None, truth_color="#4682b4",
-           scale_hist=False, quantiles=[0.68], verbose=False, fig=None,
+           scale_hist=False, quantiles=[0.68,0.95], verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
            hex=True, priors=[], set_lims="prior", use_hpd = True,
            hist_kwargs=None, **hist2d_kwargs):
@@ -345,12 +345,15 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         # Plot quantiles if wanted.
         if len(quantiles) > 0:
             if use_hpd == True:
+                lss = ["dashed","dotted"]
+                lsi = 0
                 for q in quantiles:
                     myqs = hpd(x,conf=q)
                     mymode = mode(x)
                     for qq in myqs:
-                        ax.axvline(qq, ls="dashed", color=color)
+                        ax.axvline(qq, ls=lss[lsi], color=color)
                     ax.axvline(mymode, ls="solid", color=color)
+                    lsi += 1
             else:
                 qvalues = quantile(x, quantiles, weights=weights)
                 for q in qvalues:

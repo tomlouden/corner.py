@@ -26,7 +26,7 @@ def corner(xs, bins=20, drange=None, weights=None, color=(0.12756799999999999*0.
            labels=None, label_kwargs=None,
            show_titles=True, title_fmt=".2f", title_kwargs=None,
            truths=None, truth_color="#4682b4",
-           scale_hist=False, quantiles=[0.68,0.95], verbose=False, fig=None,
+           scale_hist=False, quantiles=[0.68,0.95,0.997], verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
            hex=True, priors=[], set_lims="prior", use_hpd = True,
            hist_kwargs=None, **hist2d_kwargs):
@@ -309,7 +309,12 @@ def corner(xs, bins=20, drange=None, weights=None, color=(0.12756799999999999*0.
 
                 # Add in the column name if it's given.
                 if labels is not None:
-                    title = "{0} = {1}".format(labels[i], title)
+                    if(" [" in labels[i]):
+                        nulabel = labels[i].split(" [")[0]
+                        unit =labels[i].split(" [")[1].replace("]","")
+                        title = "{0} = {1} {2}".format(nulabel, title,unit)
+                    else:
+                        title = "{0} = {1}".format(labels[i], title)
 
             elif labels is not None:
                 title = "{0}".format(labels[i])
@@ -355,7 +360,10 @@ def corner(xs, bins=20, drange=None, weights=None, color=(0.12756799999999999*0.
         # Plot quantiles if wanted.
         if len(quantiles) > 0:
             if use_hpd == True:
-                lss = ["dashed","dotted"]
+                if len(quantiles) ==3:
+                    lss = ["dashed","dashdot","dotted"]
+                else:
+                    lss = ["dashed","dotted"]
                 lsi = 0
                 for q in quantiles:
                     myqs = hpd(x,conf=q)
@@ -644,7 +652,8 @@ def gen_contours(H,X,Y,smooth=None,levels=None):
     # Choose the default "sigma" contour levels.
     if levels is None:
 #        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
-        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
+#        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 2.1, 1.0) ** 2)
+        levels = 1.0 - np.exp(-0.5 * np.arange(1.0, 3.1, 1.0) ** 2)
 
     if smooth is not None:
         if gaussian_filter is None:

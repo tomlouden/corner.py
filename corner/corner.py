@@ -29,7 +29,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
            scale_hist=False, quantiles=[0.68,0.95], verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
            hex=True, priors=[], set_lims="prior", use_hpd = True,
-           hist_kwargs=None, **hist2d_kwargs):
+           hist_kwargs=None, sig_fig=1, **hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
     multi-dimensional space. kwargs are passed to hist2d() or used for
@@ -140,6 +140,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     hist_kwargs : dict
         Any extra keyword arguments to send to the 1-D histogram plots.
+
+    sig_fig : int
+        how many significant figures to report errors and best fitting numbers.
 
     **hist2d_kwargs
         Any remaining keyword arguments are sent to `corner.hist2d` to generate
@@ -264,7 +267,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             x = x.compressed()
 
         if np.shape(xs)[0] == 1:
-            ax = axes
+            ax = axes[0][0]
         else:
             if reverse:
                 ax = axes[K-i-1, K-i-1]
@@ -287,6 +290,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     lld = int(-1*np.sign(ld)*(math.ceil(abs(ld))) )
                     if lld <0:
                         lld += 1
+
+                    lld += (sig_fig-1)
+
                     rm = np.round(my_mode,lld)
                     re = np.round(d,lld)
                     title = "${:.{prec}f}_{{{:.{prec}f}}}^{{+{:.{prec}f}}}$".format(rm,re[0],re[1],prec=lld)
@@ -319,7 +325,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             x = x.compressed()
 
         if np.shape(xs)[0] == 1:
-            ax = axes
+            ax = axes[0][0]
         else:
             if reverse:
                 ax = axes[K-i-1, K-i-1]

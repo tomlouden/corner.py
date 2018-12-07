@@ -439,8 +439,8 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             else:
                 if j < i:
 
-                    p1 = priors[1][j]
-                    p2 = priors[1][i]
+                    p1 = priors[1][j][1:-1]
+                    p2 = priors[1][i][1:-1]
 
                     md1 = np.min(np.diff(priors[0][j]))
                     rr1 = np.arange(np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])]),md1)

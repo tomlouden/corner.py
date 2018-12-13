@@ -29,7 +29,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
            scale_hist=False, quantiles=[0.68,0.95], verbose=False, fig=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
            hex=True, priors=[], set_lims="prior", use_hpd = True,
-           hist_kwargs=None, sig_fig=1, **hist2d_kwargs):
+           hist_kwargs=None, sig_fig=1, units=None, **hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
     multi-dimensional space. kwargs are passed to hist2d() or used for
@@ -143,6 +143,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     sig_fig : int
         how many significant figures to report errors and best fitting numbers.
+
+    units : iterable
+        A list of the units for each of the parameters
 
     **hist2d_kwargs
         Any remaining keyword arguments are sent to `corner.hist2d` to generate
@@ -307,7 +310,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                 # Add in the column name if it's given.
                 if labels is not None:
-                    title = "{0} = {1}".format(labels[i], title)
+                    print(units)
+                    if units is not None:
+                        title = "{0} = {1} {2}".format(labels[i], title,units[i])
+                    else:
+                        title = "{0} = {1}".format(labels[i], title)
 
             elif labels is not None:
                 title = "{0}".format(labels[i])
@@ -404,10 +411,18 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 ax.xaxis.tick_top()
             [l.set_rotation(45) for l in ax.get_xticklabels()]
             if labels is not None:
-                if reverse:
-                    ax.set_title(labels[i], y=1.25, **label_kwargs)
+                if units is not None:
+                    if units[i] == "":
+                        label = "{}".format(labels[i])
+                    else:
+                        label = "{} [{}]".format(labels[i],units[i])
                 else:
-                    ax.set_xlabel(labels[i], **label_kwargs)
+                    label = "{}".format(labels[i])
+
+                if reverse:
+                    ax.set_title(label, y=1.25, **label_kwargs)
+                else:
+                    ax.set_xlabel(label, **label_kwargs)
 
             # use MathText for axes ticks
             ax.xaxis.set_major_formatter(
@@ -548,7 +563,15 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     ax.xaxis.tick_top()
                 [l.set_rotation(45) for l in ax.get_xticklabels()]
                 if labels is not None:
-                    ax.set_xlabel(labels[j], **label_kwargs)
+                    if units is not None:
+                        if units[j] == "":
+                            label = "{}".format(labels[j])
+                        else:
+                            label = "{} [{}]".format(labels[j],units[j])
+                    else:
+                        label = "{}".format(labels[j])
+
+                    ax.set_xlabel(label, **label_kwargs)
                     if reverse:
                         ax.xaxis.set_label_coords(0.5, 1.4)
                     else:
@@ -565,11 +588,19 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     ax.yaxis.tick_right()
                 [l.set_rotation(45) for l in ax.get_yticklabels()]
                 if labels is not None:
+                    if units is not None:
+                        if units[i] == "":
+                            label = "{}".format(labels[i])
+                        else:
+                            label = "{} [{}]".format(labels[i],units[i])
+                    else:
+                        label = "{}".format(labels[i])
+
                     if reverse:
-                        ax.set_ylabel(labels[i], rotation=-90, **label_kwargs)
+                        ax.set_ylabel(label, rotation=-90, **label_kwargs)
                         ax.yaxis.set_label_coords(1.3, 0.5)
                     else:
-                        ax.set_ylabel(labels[i], **label_kwargs)
+                        ax.set_ylabel(label, **label_kwargs)
                         ax.yaxis.set_label_coords(-0.3, 0.5)
 
                 # use MathText for axes ticks

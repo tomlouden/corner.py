@@ -310,7 +310,6 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                 # Add in the column name if it's given.
                 if labels is not None:
-                    print(units)
                     if units is not None:
                         title = "{0} = {1} {2}".format(labels[i], title,units[i])
                     else:

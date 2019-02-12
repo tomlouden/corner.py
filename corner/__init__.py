@@ -42,6 +42,6 @@ except NameError:
     __CORNER_SETUP__ = False
 
 if not __CORNER_SETUP__:
-    __all__ = ["corner", "hist2d", "quantile"]
+    __all__ = ["corner", "hist2d", "quantile","gen_contours"]
 
-    from .corner import corner, hist2d, quantile
+    from .corner import corner, hist2d, quantile, gen_contours

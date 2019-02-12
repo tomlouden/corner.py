@@ -236,10 +236,13 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         raise ValueError("Dimension mismatch between samples and drange")
 
     prange = []
-    for i in range(0,len(priors[0])):
-        p = priors[0][i]
-        p = p[np.isfinite(p)]
-        prange += [[p.min(),p.max()]]
+
+
+    if len(priors) > 0:
+        for i in range(0,len(priors[0])):
+            p = priors[0][i]
+            p = p[np.isfinite(p)]
+            prange += [[p.min(),p.max()]]
 
     # Parse the bin specifications.
     try:
@@ -263,7 +266,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     # Create a new figure if one wasn't provided.
     if fig is None:
-        fig, axes = pl.subplots(K, K, figsize=(dim, dim),aspect="equal")
+        fig, axes = pl.subplots(K, K, figsize=(dim, dim))
     else:
         try:
             axes = np.array(fig.axes).reshape((K, K))
@@ -384,7 +387,10 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 if reverse:
                     ax.set_xlabel(title, **title_kwargs)
                 else:
-                    ax.set_title(title, **title_kwargs)
+                    if (len(priors) > 0) or (lk_func is not None):
+                        ax.set_title(title, **title_kwargs)
+                    else:
+                        axes[i][i].set_title(title, **title_kwargs)
 
 
     for i, x in enumerate(xs):
@@ -448,30 +454,13 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 print("Quantiles:")
                 print([item for item in zip(quantiles, qvalues)])
 
-        ax.plot(priors[0][i],priors[1][i],color=the_cmap(0),zorder=-1,lw=2)
-        ax.plot(priors[0][i],priors[1][i],color=the_cmap(0),zorder=3,alpha=0.5,lw=2)
-        ax.fill(priors[0][i],priors[1][i],color=(the_cmap(0)[0]*0.5 +0.5, the_cmap(0)[1]*0.5 +0.5, the_cmap(0)[2]*0.5 +0.5, 1.0),zorder=-1,lw=2)
+        if len(priors) > 0:
+            ax.plot(priors[0][i],priors[1][i],color=the_cmap(0),zorder=-1,lw=2)
+            ax.plot(priors[0][i],priors[1][i],color=the_cmap(0),zorder=3,alpha=0.5,lw=2)
+            ax.fill(priors[0][i],priors[1][i],color=(the_cmap(0)[0]*0.5 +0.5, the_cmap(0)[1]*0.5 +0.5, the_cmap(0)[2]*0.5 +0.5, 1.0),zorder=-1,lw=2)
 
-
-        # estimates the likelihood function
-        cb = (xh[1:] + xh[:-1])/2.0
-        f2 = interpolate.interp1d(priors[0][i][np.isfinite(priors[0][i])], priors[1][i][np.isfinite(priors[0][i])],kind="cubic",fill_value="extrapolate")
-        prior_binned = f2(cb)
-        rat = n/prior_binned
-        rat = np.sum(n)*rat/np.sum(rat)
-
-        new_rat = [0]
-        new_xh = []
-        for ii in range(0,len(rat)):
-            new_rat += [rat[ii]]*2
-        new_rat += [0]
-        for ii in range(0,len(xh)):
-            new_xh += [xh[ii]]*2
-
-        plot_likelihood = True
-        if plot_likelihood == True:
+        if lk_func is not None:
             lk_hist_kwargs["lw"] = 2
-#            ax.plot(new_xh,new_rat)
             n, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), zorder=3,**lk_hist_kwargs)
             lk_hist_kwargs["histtype"] = "stepfilled"
@@ -484,8 +473,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
         # Set up the axes.
 
-        if set_lims == "prior":
-            ax.set_xlim(prange[i])
+        if len(prange) > 0:
+            if set_lims == "prior":
+                ax.set_xlim(prange[i])
+            else:
+                ax.set_xlim(drange[i])
         else:
             ax.set_xlim(drange[i])
 
@@ -562,90 +554,103 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             else:
                 if j < i:
 
-                    p1 = priors[1][j][1:-1]
-                    p2 = priors[1][i][1:-1]
+                    if len(priors) > 0:
+                        p1 = priors[1][j][1:-1]
+                        p2 = priors[1][i][1:-1]
 
-                    md1 = np.min(np.diff(priors[0][j]))
-                    rr1 = np.arange(np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])]),md1)
-                    f1 = interpolate.interp1d(priors[0][j][np.isfinite(priors[0][j])], priors[1][j][np.isfinite(priors[0][j])],kind="cubic")
-                    new1 = f1(rr1)
+                        md1 = np.min(np.diff(priors[0][j]))
+                        rr1 = np.arange(np.min(priors[0][j][np.isfinite(priors[0][j])]),np.max(priors[0][j][np.isfinite(priors[0][j])]),md1)
+                        f1 = interpolate.interp1d(priors[0][j][np.isfinite(priors[0][j])], priors[1][j][np.isfinite(priors[0][j])],kind="cubic")
+                        new1 = f1(rr1)
 
-                    md2 = np.min(np.diff(priors[0][i]))
-                    rr2 = np.arange(np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),md2)
-                    f2 = interpolate.interp1d(priors[0][i][np.isfinite(priors[0][i])], priors[1][i][np.isfinite(priors[0][i])],kind="cubic")
-                    new2 = f2(rr2)
+                        md2 = np.min(np.diff(priors[0][i]))
+                        rr2 = np.arange(np.min(priors[0][i][np.isfinite(priors[0][i])]),np.max(priors[0][i][np.isfinite(priors[0][i])]),md2)
+                        f2 = interpolate.interp1d(priors[0][i][np.isfinite(priors[0][i])], priors[1][i][np.isfinite(priors[0][i])],kind="cubic")
+                        new2 = f2(rr2)
 
-                    X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, drange=[drange[j], drange[i]], weights=weights,
-                           color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]],the_cmap=the_cmap,
-                           **hist2d_kwargs)
+                    if len(priors) > 0:
+                        X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, drange=[drange[j], drange[i]], weights=weights,
+                               color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]],the_cmap=the_cmap,
+                               **hist2d_kwargs)
+                    else:
+                        X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, drange=[drange[j], drange[i]], weights=weights,
+                               color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[drange[j],drange[i]],the_cmap=the_cmap,
+                               **hist2d_kwargs)
 
-                    x_lk = lk_func[:,i]
-                    y_lk = lk_func[:,j]
+                    if lk_func is not None:
+                        x_lk = lk_func[:,i]
+                        y_lk = lk_func[:,j]
 
-                    hist2d_kwargs["plot_contours"] = False
-                    hist2d_kwargs["plot_density"] = False
-                    hist2d_kwargs["plot_datapoints"] = False
+                        hist2d_kwargs["plot_contours"] = False
+                        hist2d_kwargs["plot_density"] = False
+                        hist2d_kwargs["plot_datapoints"] = False
 
-                    X2_lk, Y2_lk, H2_lk, V_lk, r1_lk, r2_lk = hist2d(y_lk, x_lk, ax=ax, drange=[drange[j], drange[i]], weights=weights,
-                           color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]], fill_contours=False,the_cmap=the_cmap,
-                           **hist2d_kwargs)
+                        if len(priors) > 0:
+                            X2_lk, Y2_lk, H2_lk, V_lk, r1_lk, r2_lk = hist2d(y_lk, x_lk, ax=ax, drange=[drange[j], drange[i]], weights=weights,
+                                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]], fill_contours=False,the_cmap=the_cmap,
+                                   **hist2d_kwargs)
+                        else:
+                            X2_lk, Y2_lk, H2_lk, V_lk, r1_lk, r2_lk = hist2d(y_lk, x_lk, ax=ax, drange=[drange[j], drange[i]], weights=weights,
+                                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[drange[j],drange[i]], fill_contours=False,the_cmap=the_cmap,
+                                   **hist2d_kwargs)
 
-                    hist2d_kwargs["plot_contours"] = True
-                    hist2d_kwargs["plot_density"] = True
-                    hist2d_kwargs["plot_datapoints"] = True
+                        hist2d_kwargs["plot_contours"] = True
+                        hist2d_kwargs["plot_density"] = True
+                        hist2d_kwargs["plot_datapoints"] = True
 
-                    bl = np.outer(new2,new1)
+                    if len(priors) > 0:
+                        bl = np.outer(new2,new1)
 
-                    p1f = False
-                    p2f = False
-                    if ((round(p1[1],2) == round(p1[-2],2)) & (round(p1[1],2) == round(p1[int(len(p1)/2)],2) )):
-                        p1f = True
-                    if ((round(p2[1],2) == round(p2[-2],2)) & (round(p2[1],2) == round(p2[int(len(p2)/2)],2) )):
-                        p2f = True
+                        p1f = False
+                        p2f = False
+                        if ((round(p1[1],2) == round(p1[-2],2)) & (round(p1[1],2) == round(p1[int(len(p1)/2)],2) )):
+                            p1f = True
+                        if ((round(p2[1],2) == round(p2[-2],2)) & (round(p2[1],2) == round(p2[int(len(p2)/2)],2) )):
+                            p2f = True
 
-                    density_cmap = the_cmap.reversed()
-                    my_cmap = density_cmap(np.arange(density_cmap.N))
-                    my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
-                    density_cmap = ListedColormap(my_cmap)
+                        density_cmap = the_cmap.reversed()
+                        my_cmap = density_cmap(np.arange(density_cmap.N))
+                        my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
+                        density_cmap = ListedColormap(my_cmap)
 
 
-                    prior_cmap = LinearSegmentedColormap.from_list(
-                        "density_cmap", [the_cmap(0.0), (1, 1, 1, 0)])
-#                    my_cmap = density_cmap(np.arange(prior_cmap.N))
-#                    my_cmap[:,-1] = np.linspace(1,0,prior_cmap.N)
-#                    prior_cmap = ListedColormap(my_cmap)
+                        prior_cmap = LinearSegmentedColormap.from_list(
+                            "density_cmap", [the_cmap(0.0), (1, 1, 1, 0)])
+    #                    my_cmap = density_cmap(np.arange(prior_cmap.N))
+    #                    my_cmap[:,-1] = np.linspace(1,0,prior_cmap.N)
+    #                    prior_cmap = ListedColormap(my_cmap)
 
-                    xedge = np.hstack((rr2[:-1]-0.5*np.diff(rr2), rr2[-2:] +0.5*np.diff(rr2)[-1]))
-                    yedge = np.hstack((rr1[:-1]-0.5*np.diff(rr1), rr1[-2:] +0.5*np.diff(rr1)[-1]))
+                        xedge = np.hstack((rr2[:-1]-0.5*np.diff(rr2), rr2[-2:] +0.5*np.diff(rr2)[-1]))
+                        yedge = np.hstack((rr1[:-1]-0.5*np.diff(rr1), rr1[-2:] +0.5*np.diff(rr1)[-1]))
 
-                    HP2, XP2, YP2, VP = gen_contours(bl,yedge,xedge)
+                        HP2, XP2, YP2, VP = gen_contours(bl,yedge,xedge)
 
-                    ax2.set_facecolor(prior_cmap(0.3))
-                    if (p1f == False) & (p2f == False):
-                        ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=["white"],antialiased=False)
-                        ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=[prior_cmap(0.3)],antialiased=False)
-                        ax2.contourf(YP2, XP2, HP2.T, [VP[1],HP2.max()*(1+1e-4)],colors=[prior_cmap(0.1)],antialiased=False)
-                    if (p1f == True) & (p2f == True):
                         ax2.set_facecolor(prior_cmap(0.3))
-                    if (p1f == True) & (p2f == False):
-                        sm = np.cumsum(new2)
-                        sm /= sm[-1]
-                        in1 = np.argmin(abs(sm-0.025))
-                        in2 = np.argmin(abs(sm-0.975))
-                        in3 = np.argmin(abs(sm-0.16))
-                        in4 = np.argmin(abs(sm-0.84))
-                        ax2.axvspan(rr2[in1],rr2[in2],color=prior_cmap(0.3),zorder=-1)
-                        ax2.axvspan(rr2[in3],rr2[in4],color=prior_cmap(0.1),zorder=-1)
+                        if (p1f == False) & (p2f == False):
+                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=["white"],antialiased=False)
+                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=[prior_cmap(0.3)],antialiased=False)
+                            ax2.contourf(YP2, XP2, HP2.T, [VP[1],HP2.max()*(1+1e-4)],colors=[prior_cmap(0.1)],antialiased=False)
+                        if (p1f == True) & (p2f == True):
+                            ax2.set_facecolor(prior_cmap(0.3))
+                        if (p1f == True) & (p2f == False):
+                            sm = np.cumsum(new2)
+                            sm /= sm[-1]
+                            in1 = np.argmin(abs(sm-0.025))
+                            in2 = np.argmin(abs(sm-0.975))
+                            in3 = np.argmin(abs(sm-0.16))
+                            in4 = np.argmin(abs(sm-0.84))
+                            ax2.axvspan(rr2[in1],rr2[in2],color=prior_cmap(0.3),zorder=-1)
+                            ax2.axvspan(rr2[in3],rr2[in4],color=prior_cmap(0.1),zorder=-1)
 
-                    if (p1f == False) & (p2f == True):
-                        sm = np.cumsum(new1)
-                        sm /= sm[-1]
-                        in1 = np.argmin(abs(sm-0.025))
-                        in2 = np.argmin(abs(sm-0.975))
-                        in3 = np.argmin(abs(sm-0.16))
-                        in4 = np.argmin(abs(sm-0.84))
-                        ax2.axhspan(rr1[in1],rr1[in2],color=prior_cmap(0.3),zorder=-1)
-                        ax2.axhspan(rr1[in3],rr1[in4],color=prior_cmap(0.1),zorder=-1)
+                        if (p1f == False) & (p2f == True):
+                            sm = np.cumsum(new1)
+                            sm /= sm[-1]
+                            in1 = np.argmin(abs(sm-0.025))
+                            in2 = np.argmin(abs(sm-0.975))
+                            in3 = np.argmin(abs(sm-0.16))
+                            in4 = np.argmin(abs(sm-0.84))
+                            ax2.axhspan(rr1[in1],rr1[in2],color=prior_cmap(0.3),zorder=-1)
+                            ax2.axhspan(rr1[in3],rr1[in4],color=prior_cmap(0.1),zorder=-1)
 
                     # Plot the contour edge colors.
                     plot_contours = True
@@ -672,21 +677,33 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         V = np.append(V,H2.max())
 
                         contour_kwargs["zorder"] = 10
-                        ax2.contourf(Y2_lk, X2_lk, H2_lk, V_lk, **contour_kwargs_lk)
-                        ax2.contourf(Y2, X2, H2, V, **contour_kwargs)
+
+                        if lk_func is not None:
+                            ax2.contourf(Y2_lk, X2_lk, H2_lk, V_lk, **contour_kwargs_lk)
+
+                        if (len(priors) > 0) or (lk_func is not None):
+                            ax2.contourf(Y2, X2, H2, V, **contour_kwargs)
 
                         contour_kwargs_lk["zorder"] = 11
-                        ax2.contour(Y2_lk, X2_lk, H2_lk, V_lk, **contour_kwargs_lk)
+
+                        if lk_func is not None:
+                            ax2.contour(Y2_lk, X2_lk, H2_lk, V_lk, **contour_kwargs_lk)
+
                         contour_kwargs_lk["zorder"] = 9
 
                         contour_kwargs["colors"] = [ec,ec]
 
-                    if set_lims == "prior":
-                        ax2.set_xlim(prange[i])
-                        ax2.set_ylim(prange[j])
-                        ax.set_xlim(prange[j])
-                        ax.set_ylim(prange[i])
-
+                    if len(prange) > 0:
+                        if set_lims == "prior":
+                            ax2.set_xlim(prange[i])
+                            ax2.set_ylim(prange[j])
+                            ax.set_xlim(prange[j])
+                            ax.set_ylim(prange[i])
+                        else:
+                            ax2.set_xlim(r2)
+                            ax2.set_ylim(r1)
+                            ax.set_xlim(r1)
+                            ax.set_ylim(r2)
                     else:
                         ax2.set_xlim(r2)
                         ax2.set_ylim(r1)

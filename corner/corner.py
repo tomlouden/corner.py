@@ -538,7 +538,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 else:
                     ax = axes[i, j]
                     ax2 = axes[j, i]
-            if priors == []:
+            if (priors == []) & (lk_func is None):
                 if j > i:
                     ax.set_frame_on(False)
                     ax.set_xticks([])

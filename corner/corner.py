@@ -408,18 +408,12 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         # Plot the histograms.
         if smooth1d is None:
 
-            print("")
-
-            print("before 1",ax.get_ylim())
-
             hist_kwargs["zorder"] = 3
             n, xh, yh = ax.hist(x, bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), **hist_kwargs)
 
             hist_kwargs["histtype"] = "step"
             hist_kwargs["zorder"] = 4
-
-            print("before 2",ax.get_ylim())
 
             n, xh, yh = ax.hist(x, bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), **hist_kwargs)
@@ -470,8 +464,6 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
         if lk_func is not None:
 
-            print("before",ax.get_ylim())
-
             lk_hist_kwargs["lw"] = 2
             nlk, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), zorder=3,**lk_hist_kwargs)
@@ -482,8 +474,6 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             lk_hist_kwargs["histtype"] = "step"
             lk_hist_kwargs["alpha"] = 1.0
             lk_hist_kwargs["color"] = lk_color
-
-            print("after",ax.get_ylim())
 
             maxnlk = np.max(nlk)
             maxn = np.max([maxn,maxnlk])

@@ -675,6 +675,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         contour_kwargs_lk["colors"] = [lk_color2,lk_color]
 
                         V = np.append(V,H2.max())
+                        V_lk = np.append(V_lk,H2_lk.max())
 
                         contour_kwargs["zorder"] = 10
 

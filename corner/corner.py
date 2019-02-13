@@ -407,12 +407,19 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 ax = axes[i, i]
         # Plot the histograms.
         if smooth1d is None:
+
+            print("")
+
+            print("before 1",ax.get_ylim())
+
             hist_kwargs["zorder"] = 3
             n, xh, yh = ax.hist(x, bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), **hist_kwargs)
 
             hist_kwargs["histtype"] = "step"
             hist_kwargs["zorder"] = 4
+
+            print("before 2",ax.get_ylim())
 
             n, xh, yh = ax.hist(x, bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), **hist_kwargs)
@@ -459,17 +466,28 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             ax.plot(priors[0][i],priors[1][i],color=the_cmap(0),zorder=3,alpha=0.5,lw=2)
             ax.fill(priors[0][i],priors[1][i],color=(the_cmap(0)[0]*0.5 +0.5, the_cmap(0)[1]*0.5 +0.5, the_cmap(0)[2]*0.5 +0.5, 1.0),zorder=-1,lw=2)
 
+        maxn = np.max(n)
+
         if lk_func is not None:
+
+            print("before",ax.get_ylim())
+
             lk_hist_kwargs["lw"] = 2
-            n, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
+            nlk, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), zorder=3,**lk_hist_kwargs)
             lk_hist_kwargs["histtype"] = "stepfilled"
             lk_hist_kwargs["color"] = lk_color2
-            n, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
+            nlk, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), zorder=2,**lk_hist_kwargs)
             lk_hist_kwargs["histtype"] = "step"
             lk_hist_kwargs["alpha"] = 1.0
             lk_hist_kwargs["color"] = lk_color
+
+            print("after",ax.get_ylim())
+
+            maxnlk = np.max(nlk)
+            maxn = np.max([maxn,maxnlk])
+
 
         # Set up the axes.
 
@@ -482,7 +500,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             ax.set_xlim(drange[i])
 
         if scale_hist:
-            maxn = np.max(n)
+
             ax.set_ylim(-0.1 * maxn, 1.1 * maxn)
         else:
             ax.set_ylim(0, 1.1 * np.max(n))

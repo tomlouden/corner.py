@@ -493,7 +493,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
             ax.set_ylim(-0.1 * maxn, 1.1 * maxn)
         else:
-            ax.set_ylim(0, 1.1 * np.max(n))
+            ax.set_ylim(0, 1.1 * maxn)
         ax.set_yticklabels([])
         if max_n_ticks == 0:
             ax.xaxis.set_major_locator(NullLocator())
@@ -683,11 +683,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         contour_kwargs_lk["colors"] = [lk_color2,lk_color]
 
                         V = np.append(V,H2.max())
-                        V_lk = np.append(V_lk,H2_lk.max())
 
                         contour_kwargs["zorder"] = 10
 
                         if lk_func is not None:
+                            V_lk = np.append(V_lk,H2_lk.max())
                             ax2.contourf(Y2_lk, X2_lk, H2_lk, V_lk, **contour_kwargs_lk)
 
                         if (len(priors) > 0) or (lk_func is not None):
@@ -994,12 +994,25 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
 
     # This is the color map for the density plot, over-plotted to indicate the
     # density of the points near the center.
-    density_cmap = LinearSegmentedColormap.from_list(
-        "density_cmap", [color, (1, 1, 1, 0)])
-    density_cmap = the_cmap.reversed()
-    my_cmap = density_cmap(np.arange(density_cmap.N))
-    my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
-    density_cmap = ListedColormap(my_cmap)
+
+    ptype = 1
+
+    if ptype == 1:
+        al = 1.0
+        mal = 0.1
+        maxcol = (the_cmap(0.5)[0]*(1-mal) + mal,the_cmap(0.5)[1]*(1-mal) + mal,the_cmap(0.5)[2]*(1-mal) + mal,(1-mal))
+        mincol = (the_cmap(0.5)[0]*(1-al) + al,the_cmap(0.5)[1]*(1-al) + al,the_cmap(0.5)[2]*(1-al) + al,(1-al))
+        density_cmap = LinearSegmentedColormap.from_list(
+            "density_cmap", [maxcol, mincol])
+        point_color = the_cmap(0.5)
+
+    if ptype == 2:
+        density_cmap = the_cmap.reversed()
+        my_cmap = density_cmap(np.arange(density_cmap.N))
+        my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
+        density_cmap = ListedColormap(my_cmap)
+        point_color = the_cmap(0.0)
+
 
     # This color map is used to hide the points at the high density areas.
     white_cmap = LinearSegmentedColormap.from_list(
@@ -1036,6 +1049,7 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
             data_kwargs = dict()
         data_kwargs["color"] = data_kwargs.get("color", color)
         data_kwargs["color"] = the_cmap(0.0)
+        data_kwargs["color"] = point_color
         data_kwargs["ms"] = data_kwargs.get("ms", 2.0)
         data_kwargs["mec"] = data_kwargs.get("mec", "none")
         data_kwargs["alpha"] = data_kwargs.get("alpha", 0.1)
@@ -1069,7 +1083,7 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
         if contour_kwargs is None:
             contour_kwargs = dict()
         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
-        contour_kwargs["colors"] = [the_cmap(0.0),the_cmap(0.0)]
+        contour_kwargs["colors"] = [point_color,point_color]
         ax.contour(X2, Y2, H2.T, V, **contour_kwargs)
 
     return X2, Y2, H2, V, drange[0], drange[1]

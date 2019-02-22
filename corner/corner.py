@@ -237,6 +237,8 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     prange = []
 
+    ntps = []
+    xntps = []
 
     if len(priors) > 0:
         for i in range(0,len(priors[0])):
@@ -483,7 +485,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
         if len(prange) > 0:
             if set_lims == "prior":
-                ax.set_xlim(prange[i])
+
+                r1_0 = np.min([prange[i][0],drange[i][0]])
+                r1_1 = np.max([prange[i][1],drange[i][1]])
+                this_r1 = (r1_0,r1_1)
+                ax.set_xlim(this_r1)
             else:
                 ax.set_xlim(drange[i])
         else:
@@ -528,12 +534,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
             # use MathText for axes ticks
 
-            sf = ScalarFormatter(useMathText=use_math_text)
-            sf.locs = [unit_transforms[i](c) for c in ax.get_xticks()]
-            cl = ax.get_xlim()
-            sf._set_format(unit_transforms[i](cl[0]),unit_transforms[i](cl[0]))
-            new = [sf.pprint_val(c) for c in sf.locs]
-            ax.set_xticklabels(new)
+            # important function for if there's a unit transform
+            ntp = rescale(ax,"x",unit_transforms[i],use_math_text=use_math_text)
+            for jj, yy in enumerate(xs):
+                axes[jj][i].set_xticks(ntp)
+            xntps2 = [ntp]
 
 
         for j, y in enumerate(xs):
@@ -704,10 +709,20 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                     if len(prange) > 0:
                         if set_lims == "prior":
-                            ax2.set_xlim(prange[i])
-                            ax2.set_ylim(prange[j])
-                            ax.set_xlim(prange[j])
-                            ax.set_ylim(prange[i])
+
+                            r2_0 = np.min([prange[i][0],r2[0]])
+                            r2_1 = np.max([prange[i][1],r2[1]])
+
+                            r1_0 = np.min([prange[j][0],r1[0]])
+                            r1_1 = np.max([prange[j][1],r1[1]])
+
+                            this_r1 = (r1_0,r1_1)
+                            this_r2 = (r2_0,r2_1)
+
+                            ax2.set_xlim(this_r2)
+                            ax2.set_ylim(this_r1)
+                            ax.set_xlim(this_r1)
+                            ax.set_ylim(this_r2)
                         else:
                             ax2.set_xlim(r2)
                             ax2.set_ylim(r1)
@@ -757,14 +772,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     else:
                         ax.xaxis.set_label_coords(0.5, -0.3)
 
-                # use MathText for axes ticks
-
-                sf = ScalarFormatter(useMathText=use_math_text)
-                sf.locs = [unit_transforms[j](c) for c in ax.get_xticks()]
-                cl = ax.get_xlim()
-                sf._set_format(unit_transforms[j](cl[0]),unit_transforms[j](cl[0]))
-                new = [sf.pprint_val(c) for c in sf.locs]
-                ax.set_xticklabels(new)
+                # important function for if there's a unit transform
+                ntp = rescale(ax,"x",unit_transforms[j],use_math_text=use_math_text)
+                for jj, yy in enumerate(xs):
+                    axes[jj][j].set_xticks(ntp)
+                xntps += [ntp]
 
 
             if j > 0:
@@ -791,13 +803,21 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                 # use MathText for axes ticks
 
-                sf = ScalarFormatter(useMathText=use_math_text)
-                sf.locs = [unit_transforms[i](c) for c in ax.get_yticks()]
-                cl = ax.get_ylim()
-                sf._set_format(unit_transforms[i](cl[0]),unit_transforms[i](cl[0]))
-                new = [sf.pprint_val(c) for c in sf.locs]
-                ax.set_yticklabels(new)
+                # important function for if there's a unit transform
+                ntp = rescale(ax,"y",unit_transforms[i],use_math_text=use_math_text)
+                ntps += [ntp]
+                print("yep")
 
+
+    xntps += xntps2
+    print(xntps)
+    print(ntps)
+
+    for ii, yy in enumerate(xs):
+        for jj, yy in enumerate(xs):
+            if (ii) != jj:
+                print(ii,jj)
+                axes[ii][jj].set_yticks(xntps[ii])
 
 #    i = 0
 #    for j in range(1,len(xs)):
@@ -811,6 +831,43 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
 
     return fig
+
+def rescale(ax,wh,unit_transform,use_math_text=True):
+
+
+    if wh == "y":
+        ff = ax.yaxis.get_major_locator()
+        cl = ax.get_ylim()
+    else:
+        ff = ax.xaxis.get_major_locator()
+        cl = ax.get_xlim()
+
+    sf = ScalarFormatter(useMathText=use_math_text)
+
+    ncl = [unit_transform(cl[0]),unit_transform(cl[1])]
+
+
+    ww = (ncl[1] - ncl[0])
+    ww_o = (cl[1] - cl[0])
+    ntv = ff.tick_values(unit_transform(cl[0]),unit_transform(cl[1]))
+    ntp = ((ntv-ncl[0])/ww)
+    ni = (ntp > 0) & (ntp < 1)
+    ntp = (ntp*ww_o) + cl[0]
+    ntp = ntp[ni]
+    ntv = ntv[ni]
+
+    sf.locs = ntv
+    sf._set_format(ncl[0],ncl[0])
+
+    new = [sf.pprint_val(c) for c in ntv]
+
+    if wh == "y":
+        ax.set_yticks(ntp)
+        ax.set_yticklabels(new)
+    else:
+        ax.set_xticks(ntp)
+        ax.set_xticklabels(new)
+    return ntp
 
 
 def quantile(x, q, weights=None):

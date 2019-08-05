@@ -25,12 +25,12 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
            smooth=1, smooth1d=None,
            labels=None, label_kwargs=None,
            show_titles=True, title_fmt=".2f", title_kwargs=None,
-           truths=None, truth_color="#4682b4",
-           scale_hist=False, quantiles=[0.68,0.95], verbose=False, fig=None,
+           truths=None, truth_color="C1",
+           scale_hist=False, quantiles=[0.68,0.95], verbose=False, fig=None, axes=None,
            max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
            hex=True, priors=[], set_lims="prior", use_hpd = True,
-           hist_kwargs=None, sig_fig=2, units=None, lk_func = None, 
-           lk_hist_kwargs=None, unit_transforms=None,colormap=None,**hist2d_kwargs):
+           hist_kwargs=None, sig_fig=2, units=None, lk_func = None, force_reflect=False, 
+           lk_hist_kwargs=None, unit_transforms=None,colormap=None,save_lims=False,**hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
     multi-dimensional space. kwargs are passed to hist2d() or used for
@@ -139,6 +139,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
     fig : matplotlib.Figure
         Overplot onto the provided figure object.
 
+    axes : list
+        A 2D array of the axes to plot into
+
     hist_kwargs : dict
         Any extra keyword arguments to send to the 1-D histogram plots.
 
@@ -151,6 +154,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
     lk_func : iterable
         A distribution for the likelihood posterior, same format as xs
 
+    force_reflect : bool
+        obscure function required to unlock the second axis in some cases.
+
     lk_hist_kwargs : dict
         Any extra keyword arguments to send to the 1-D likelihood histogram plots.
 
@@ -160,6 +166,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     colormap : iterable
         colormap name to use in the plot, default is viridis
+
+    save_lims : bool
+        don't change any of the limits on the axis you're given
 
     **hist2d_kwargs
         Any remaining keyword arguments are sent to `corner.hist2d` to generate
@@ -271,7 +280,8 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         fig, axes = pl.subplots(K, K, figsize=(dim, dim))
     else:
         try:
-            axes = np.array(fig.axes).reshape((K, K))
+            if axes is None:
+                axes = np.array(fig.axes).reshape((K, K))
         except:
             raise ValueError("Provided figure has {0} axes, but data has "
                              "dimensions K={1}".format(len(fig.axes), K))
@@ -289,6 +299,51 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
     # Set up the default histogram keywords.
     if hist_kwargs is None:
         hist_kwargs = dict()
+
+
+    main_fc = (the_cmap(0.5)[0]*0.5 + 0.5,the_cmap(0.5)[1]*0.5 + 0.5,the_cmap(0.5)[2]*0.5 + 0.5,1.0)
+    main_ec = the_cmap(0.5)
+
+    pr_edge = the_cmap(0)
+    pr_fill = (the_cmap(0)[0]*0.5 +0.5, the_cmap(0)[1]*0.5 +0.5, the_cmap(0)[2]*0.5 +0.5, 1.0)
+
+    density_cmap = the_cmap.reversed()
+    my_cmap = density_cmap(np.arange(density_cmap.N))
+    my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
+    density_cmap = ListedColormap(my_cmap)
+
+    hist2d_kwargs["pr_edge"] = pr_edge
+
+    # This is the color map for the density plot, over-plotted to indicate the
+    # density of the points near the center.
+
+    ptype = 1
+
+    if ptype == 1:
+        al = 1.0
+        mal = 0.1
+        maxcol = (the_cmap(0.5)[0]*(1-mal) + mal,the_cmap(0.5)[1]*(1-mal) + mal,the_cmap(0.5)[2]*(1-mal) + mal,(1-mal))
+        mincol = (the_cmap(0.5)[0]*(1-al) + al,the_cmap(0.5)[1]*(1-al) + al,the_cmap(0.5)[2]*(1-al) + al,(1-al))
+        density_cmap = LinearSegmentedColormap.from_list(
+            "density_cmap", [maxcol, mincol])
+        point_color = main_ec
+
+    if ptype == 2:
+        density_cmap = the_cmap.reversed()
+        my_cmap = density_cmap(np.arange(density_cmap.N))
+        my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
+        density_cmap = ListedColormap(my_cmap)
+        point_color = pr_edge
+
+    hist2d_kwargs["density_cmap"] = density_cmap
+
+    hist2d_kwargs["point_color"] = point_color
+
+    prior_cmap = LinearSegmentedColormap.from_list(
+        "density_cmap", [pr_edge, (1, 1, 1, 0)])
+
+    pr_f2 = prior_cmap(0.3)
+    pr_f1 = prior_cmap(0.0)
 
     hist_kwargs["color"] = hist_kwargs.get("color", color)
     hist_kwargs["lw"] = 2
@@ -345,9 +400,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 if use_hpd == True:
                     my_mode = mode(x)
                     my_hpd = hpd(x,conf=0.68)
-                    my_mode = tr(my_mode)
-                    my_hpd[0] = tr(my_hpd[0])
-                    my_hpd[1] = tr(my_hpd[1])
+
+                    if tr != []:
+                        my_mode = tr(my_mode)
+                        my_hpd[0] = tr(my_hpd[0])
+                        my_hpd[1] = tr(my_hpd[1])
 
 
                     q_50 = my_mode
@@ -361,8 +418,13 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                     lld += (sig_fig-1)
 
+                    #maybe?
+                    if lld <0:
+                        lld += 1
+
                     rm = np.round(my_mode,lld)
                     re = np.round(d,lld)
+                    #print(rm,re,lld)
                     title = "${:.{prec}f}_{{{:.{prec}f}}}^{{+{:.{prec}f}}}$".format(rm,re[0],re[1],prec=lld)
                 else:
                     q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84],
@@ -434,7 +496,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             ax.plot(x0, y0, **hist_kwargs)
 
         if truths is not None and truths[i] is not None:
-            ax.axvline(truths[i], color=truth_color)
+            ax.axvline(truths[i], color=truth_color,zorder=10)
 
         # Plot quantiles if wanted.
         if len(quantiles) > 0:
@@ -458,9 +520,10 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 print([item for item in zip(quantiles, qvalues)])
 
         if len(priors) > 0:
-            ax.plot(priors[0][i],priors[1][i],color=the_cmap(0),zorder=-1,lw=2)
-            ax.plot(priors[0][i],priors[1][i],color=the_cmap(0),zorder=3,alpha=0.5,lw=2)
-            ax.fill(priors[0][i],priors[1][i],color=(the_cmap(0)[0]*0.5 +0.5, the_cmap(0)[1]*0.5 +0.5, the_cmap(0)[2]*0.5 +0.5, 1.0),zorder=-1,lw=2)
+            if labels[i] != "lk":
+                ax.plot(priors[0][i],priors[1][i],color=pr_edge,zorder=-1,lw=2)
+                ax.plot(priors[0][i],priors[1][i],color=pr_edge,zorder=3,alpha=0.5,lw=2)
+                ax.fill(priors[0][i],priors[1][i],color=pr_fill,zorder=-1,lw=2)
 
         maxn = np.max(n)
 
@@ -483,23 +546,31 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
         # Set up the axes.
 
-        if len(prange) > 0:
-            if set_lims == "prior":
+        if save_lims == False:
+            if len(prange) > 0:
+                if set_lims == "prior":
 
-                r1_0 = np.min([prange[i][0],drange[i][0]])
-                r1_1 = np.max([prange[i][1],drange[i][1]])
-                this_r1 = (r1_0,r1_1)
-                ax.set_xlim(this_r1)
+                    r1_0 = np.min([prange[i][0],drange[i][0]])
+                    r1_1 = np.max([prange[i][1],drange[i][1]])
+                    this_r1 = (r1_0,r1_1)
+                    ax.set_xlim(this_r1)
+                else:
+                    ax.set_xlim(drange[i])
             else:
                 ax.set_xlim(drange[i])
-        else:
-            ax.set_xlim(drange[i])
+
+        newmax = 1.1 * maxn
+
+        if save_lims == True:
+            og = ax.get_ylim()[1]
+            if newmax < og:
+                newmax = og
 
         if scale_hist:
-
-            ax.set_ylim(-0.1 * maxn, 1.1 * maxn)
+            ax.set_ylim(-0.1 * maxn, newmax)
         else:
-            ax.set_ylim(0, 1.1 * maxn)
+            ax.set_ylim(0, 1.1 * newmax)
+
         ax.set_yticklabels([])
         if max_n_ticks == 0:
             ax.xaxis.set_major_locator(NullLocator())
@@ -535,10 +606,13 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             # use MathText for axes ticks
 
             # important function for if there's a unit transform
-            ntp = rescale(ax,"x",unit_transforms[i],use_math_text=use_math_text)
-            for jj, yy in enumerate(xs):
-                axes[jj][i].set_xticks(ntp)
-            xntps2 = [ntp]
+            if unit_transforms[i] != []:
+                ntp = rescale(ax,"x",unit_transforms[i],use_math_text=use_math_text)
+                for jj, yy in enumerate(xs):
+                    axes[jj][i].set_xticks(ntp)
+                xntps2 = [ntp]
+            else:
+                xntps2 = [[]]
 
 
         for j, y in enumerate(xs):
@@ -553,9 +627,10 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     ax2 = axes[j, i]
             if (priors == []) & (lk_func is None):
                 if j > i:
-                    ax.set_frame_on(False)
-                    ax.set_xticks([])
-                    ax.set_yticks([])
+                    if save_lims == False:
+                        ax.set_frame_on(False)
+                        ax.set_xticks([])
+                        ax.set_yticks([])
                     continue
             if j == i:
                 continue
@@ -582,6 +657,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         new2 = f2(rr2)
 
                     if len(priors) > 0:
+                        print(hist2d_kwargs)
                         X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, drange=[drange[j], drange[i]], weights=weights,
                                color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]],the_cmap=the_cmap,
                                **hist2d_kwargs)
@@ -621,14 +697,6 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         if ((round(p2[1],2) == round(p2[-2],2)) & (round(p2[1],2) == round(p2[int(len(p2)/2)],2) )):
                             p2f = True
 
-                        density_cmap = the_cmap.reversed()
-                        my_cmap = density_cmap(np.arange(density_cmap.N))
-                        my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
-                        density_cmap = ListedColormap(my_cmap)
-
-
-                        prior_cmap = LinearSegmentedColormap.from_list(
-                            "density_cmap", [the_cmap(0.0), (1, 1, 1, 0)])
     #                    my_cmap = density_cmap(np.arange(prior_cmap.N))
     #                    my_cmap[:,-1] = np.linspace(1,0,prior_cmap.N)
     #                    prior_cmap = ListedColormap(my_cmap)
@@ -638,13 +706,13 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                         HP2, XP2, YP2, VP = gen_contours(bl,yedge,xedge)
 
-                        ax2.set_facecolor(prior_cmap(0.3))
+#                        ax2.set_facecolor(pr_f2)
                         if (p1f == False) & (p2f == False):
-                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=["white"],antialiased=False)
-                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=[prior_cmap(0.3)],antialiased=False)
-                            ax2.contourf(YP2, XP2, HP2.T, [VP[1],HP2.max()*(1+1e-4)],colors=[prior_cmap(0.1)],antialiased=False)
-                        if (p1f == True) & (p2f == True):
-                            ax2.set_facecolor(prior_cmap(0.3))
+#                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=["white"],antialiased=False)
+                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],HP2.max()*(1+1e-4)],colors=[pr_f2],antialiased=False,zorder=-1)
+                            ax2.contourf(YP2, XP2, HP2.T, [VP[1],HP2.max()*(1+1e-4)],colors=[pr_f1],antialiased=False,zorder=-1)
+#                        if (p1f == True) & (p2f == True):
+#                            ax2.axvspan(xls[0],xls[1],color=prior_cmap(0.1),zorder=-1)
                         if (p1f == True) & (p2f == False):
                             sm = np.cumsum(new2)
                             sm /= sm[-1]
@@ -652,8 +720,8 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                             in2 = np.argmin(abs(sm-0.975))
                             in3 = np.argmin(abs(sm-0.16))
                             in4 = np.argmin(abs(sm-0.84))
-                            ax2.axvspan(rr2[in1],rr2[in2],color=prior_cmap(0.3),zorder=-1)
-                            ax2.axvspan(rr2[in3],rr2[in4],color=prior_cmap(0.1),zorder=-1)
+                            ax2.axvspan(rr2[in1],rr2[in2],color=pr_f2,zorder=-1)
+                            ax2.axvspan(rr2[in3],rr2[in4],color=pr_f1,zorder=-1)
 
                         if (p1f == False) & (p2f == True):
                             sm = np.cumsum(new1)
@@ -662,8 +730,8 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                             in2 = np.argmin(abs(sm-0.975))
                             in3 = np.argmin(abs(sm-0.16))
                             in4 = np.argmin(abs(sm-0.84))
-                            ax2.axhspan(rr1[in1],rr1[in2],color=prior_cmap(0.3),zorder=-1)
-                            ax2.axhspan(rr1[in3],rr1[in4],color=prior_cmap(0.1),zorder=-1)
+                            ax2.axhspan(rr1[in1],rr1[in2],color=pr_f2,zorder=-1)
+                            ax2.axhspan(rr1[in3],rr1[in4],color=pr_f1,zorder=-1)
 
                     # Plot the contour edge colors.
                     plot_contours = True
@@ -674,10 +742,10 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                             contour_kwargs = dict()
                         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
 
-                        fc = (0.563784 ,  0.7834745,  0.775278, 1.0)
-                        fc = (the_cmap(0.5)[0]*0.5 + 0.5,the_cmap(0.5)[1]*0.5 + 0.5,the_cmap(0.5)[2]*0.5 + 0.5,1.0) 
+#                        fc = (0.563784 ,  0.7834745,  0.775278, 1.0)
+                        fc = main_fc
 
-                        ec = the_cmap(0.5)
+                        ec = main_ec
 
                         contour_kwargs["colors"] = [ec,ec]
 
@@ -695,7 +763,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                             V_lk = np.append(V_lk,H2_lk.max())
                             ax2.contourf(Y2_lk, X2_lk, H2_lk, V_lk, **contour_kwargs_lk)
 
-                        if (len(priors) > 0) or (lk_func is not None):
+                        if (len(priors) > 0) or (lk_func is not None) or (force_reflect == True):
                             ax2.contourf(Y2, X2, H2, V, **contour_kwargs)
 
                         contour_kwargs_lk["zorder"] = 11
@@ -707,40 +775,52 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                         contour_kwargs["colors"] = [ec,ec]
 
-                    if len(prange) > 0:
-                        if set_lims == "prior":
+                    if (len(priors) == 0) and (lk_func is None):
+                        ax2.set_xticks([])
+                        ax2.set_xticklabels([])
+                        ax2.set_yticks([])
+                        ax2.set_yticklabels([])
 
-                            r2_0 = np.min([prange[i][0],r2[0]])
-                            r2_1 = np.max([prange[i][1],r2[1]])
+                    if save_lims == False:
+                        if len(prange) > 0:
+                            if set_lims == "prior":
 
-                            r1_0 = np.min([prange[j][0],r1[0]])
-                            r1_1 = np.max([prange[j][1],r1[1]])
+                                r2_0 = np.min([prange[i][0],r2[0]])
+                                r2_1 = np.max([prange[i][1],r2[1]])
 
-                            this_r1 = (r1_0,r1_1)
-                            this_r2 = (r2_0,r2_1)
+                                r1_0 = np.min([prange[j][0],r1[0]])
+                                r1_1 = np.max([prange[j][1],r1[1]])
 
-                            ax2.set_xlim(this_r2)
-                            ax2.set_ylim(this_r1)
-                            ax.set_xlim(this_r1)
-                            ax.set_ylim(this_r2)
+                                this_r1 = (r1_0,r1_1)
+                                this_r2 = (r2_0,r2_1)
+
+                                ax2.set_xlim(this_r2)
+                                ax2.set_ylim(this_r1)
+                                ax.set_xlim(this_r1)
+                                ax.set_ylim(this_r2)
+                            else:
+                                ax2.set_xlim(r2)
+                                ax2.set_ylim(r1)
+                                ax.set_xlim(r1)
+                                ax.set_ylim(r2)
                         else:
                             ax2.set_xlim(r2)
                             ax2.set_ylim(r1)
                             ax.set_xlim(r1)
                             ax.set_ylim(r2)
-                    else:
-                        ax2.set_xlim(r2)
-                        ax2.set_ylim(r1)
-                        ax.set_xlim(r1)
-                        ax.set_ylim(r2)
+                    xl = ax2.get_xlim()
+
+                    if len(priors) > 0:
+                        ax2.axvspan(xl[0],xl[1],color=pr_f2,zorder=-1)
+
 
             if truths is not None:
                 if truths[i] is not None and truths[j] is not None:
-                    ax.plot(truths[j], truths[i], "s", color=truth_color)
+                    ax.plot(truths[j], truths[i], "s", color=truth_color,zorder=10,ms=3)
                 if truths[j] is not None:
-                    ax.axvline(truths[j], color=truth_color)
+                    ax.axvline(truths[j], color=truth_color,zorder=10,lw=1)
                 if truths[i] is not None:
-                    ax.axhline(truths[i], color=truth_color)
+                    ax.axhline(truths[i], color=truth_color,zorder=10,lw=1)
 
             if max_n_ticks == 0:
                 ax.xaxis.set_major_locator(NullLocator())
@@ -771,13 +851,20 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         ax.xaxis.set_label_coords(0.5, 1.4)
                     else:
                         ax.xaxis.set_label_coords(0.5, -0.3)
+                        ax.xaxis.set_label_coords(0.5, -0.4)
 
                 # important function for if there's a unit transform
-                ntp = rescale(ax,"x",unit_transforms[j],use_math_text=use_math_text)
-                for jj, yy in enumerate(xs):
-                    axes[jj][j].set_xticks(ntp)
-                xntps += [ntp]
-
+                if unit_transforms[i] != []:
+                    ntp = rescale(ax,"x",unit_transforms[j],use_math_text=use_math_text)
+                    for jj, yy in enumerate(xs):
+    #                    axes[jj][j].set_xticks(ntp)
+                        if jj > K-1:
+                            if (len(priors) == 0) and (lk_func is None):
+                                ax2.set_xticks([])
+                                ax2.set_xticklabels([])
+                                ax2.set_yticks([])
+                                ax2.set_yticklabels([])
+                    xntps += [ntp]
 
             if j > 0:
                 ax.set_yticklabels([])
@@ -800,24 +887,29 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     else:
                         ax.set_ylabel(label, **label_kwargs)
                         ax.yaxis.set_label_coords(-0.3, 0.5)
+                        ax.yaxis.set_label_coords(-0.4, 0.5)
 
                 # use MathText for axes ticks
 
                 # important function for if there's a unit transform
-                ntp = rescale(ax,"y",unit_transforms[i],use_math_text=use_math_text)
-                ntps += [ntp]
-                print("yep")
+                if unit_transforms[i] != []:
+                    ntp = rescale(ax,"y",unit_transforms[i],use_math_text=use_math_text)
+                    ntps += [ntp]
 
 
     xntps += xntps2
-    print(xntps)
-    print(ntps)
 
     for ii, yy in enumerate(xs):
         for jj, yy in enumerate(xs):
             if (ii) != jj:
-                print(ii,jj)
-                axes[ii][jj].set_yticks(xntps[ii])
+                if xntps != [[]]:
+                    axes[ii][jj].set_yticks(xntps[ii])
+                if jj > ii-1:
+                    if (len(priors) == 0) and (lk_func is None):
+                        axes[ii][jj].set_xticks([])
+                        axes[ii][jj].set_xticklabels([])
+                        axes[ii][jj].set_yticks([])
+                        axes[ii][jj].set_yticklabels([])
 
 #    i = 0
 #    for j in range(1,len(xs)):
@@ -927,7 +1019,7 @@ def gen_contours(H,X,Y,smooth=None,levels=None):
     # Choose the default "sigma" contour levels.
     if levels is None:
 #        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
-        levels = 1.0 - np.exp(-0.5 * np.arange(2.1, 1.0) ** 2)
+        levels = 1.0 - np.exp(-0.5 * np.arange(1.0,2.1, 1.0) ** 2)
 
     if smooth is not None:
         if gaussian_filter is None:
@@ -985,7 +1077,7 @@ def gen_contours(H,X,Y,smooth=None,levels=None):
 def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
            ax=None, color=None, plot_datapoints=True, plot_density=True,
            plot_contours=True, no_fill_contours=False, fill_contours=False,
-           hex=True, contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,the_cmap=None,
+           hex=True, contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,the_cmap=None,pr_edge=None,point_color=None,density_cmap=None,
            **kwargs):
     """
     Plot a 2-D histogram of samples.
@@ -1049,27 +1141,6 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
     if color is None:
         color = "C1"
 
-    # This is the color map for the density plot, over-plotted to indicate the
-    # density of the points near the center.
-
-    ptype = 1
-
-    if ptype == 1:
-        al = 1.0
-        mal = 0.1
-        maxcol = (the_cmap(0.5)[0]*(1-mal) + mal,the_cmap(0.5)[1]*(1-mal) + mal,the_cmap(0.5)[2]*(1-mal) + mal,(1-mal))
-        mincol = (the_cmap(0.5)[0]*(1-al) + al,the_cmap(0.5)[1]*(1-al) + al,the_cmap(0.5)[2]*(1-al) + al,(1-al))
-        density_cmap = LinearSegmentedColormap.from_list(
-            "density_cmap", [maxcol, mincol])
-        point_color = the_cmap(0.5)
-
-    if ptype == 2:
-        density_cmap = the_cmap.reversed()
-        my_cmap = density_cmap(np.arange(density_cmap.N))
-        my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
-        density_cmap = ListedColormap(my_cmap)
-        point_color = the_cmap(0.0)
-
 
     # This color map is used to hide the points at the high density areas.
     white_cmap = LinearSegmentedColormap.from_list(
@@ -1105,7 +1176,7 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
         if data_kwargs is None:
             data_kwargs = dict()
         data_kwargs["color"] = data_kwargs.get("color", color)
-        data_kwargs["color"] = the_cmap(0.0)
+        data_kwargs["color"] = pr_edge
         data_kwargs["color"] = point_color
         data_kwargs["ms"] = data_kwargs.get("ms", 2.0)
         data_kwargs["mec"] = data_kwargs.get("mec", "none")

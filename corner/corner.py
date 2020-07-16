@@ -21,16 +21,16 @@ except ImportError:
 __all__ = ["corner", "hist2d", "quantile","gen_contours"]
 
 
-def corner(xs, bins=20, drange=None, weights=None, color="C1",
+def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
            smooth=1, smooth1d=None,
            labels=None, label_kwargs=None,
            show_titles=True, title_fmt=".2f", title_kwargs=None,
-           truths=None, truth_color="C1",
+           truths=None, truth_color="#ff7f0e",
            scale_hist=False, quantiles=[0.68,0.95], verbose=False, fig=None, axes=None,
-           max_n_ticks=5, top_ticks=False, use_math_text=False, reverse=False,
+           max_n_ticks=3, top_ticks=False, use_math_text=False, reverse=False,
            hex=True, priors=[], set_lims="prior", use_hpd = True,
            hist_kwargs=None, sig_fig=2, units=None, lk_func = None, force_reflect=False, 
-           lk_hist_kwargs=None, unit_transforms=None,colormap=None,save_lims=False,**hist2d_kwargs):
+           lk_hist_kwargs=None, unit_transforms=None,colormap=None,save_lims=False,fontsize=None,**hist2d_kwargs):
     """
     Make a *sick* corner plot showing the projections of a data set in a
     multi-dimensional space. kwargs are passed to hist2d() or used for
@@ -175,6 +175,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         the 2-D histogram plots.
 
     """
+
     if quantiles is None:
         quantiles = []
     if title_kwargs is None:
@@ -264,18 +265,59 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     # Some magic numbers for pretty axis layout.
     K = len(xs)
-    factor = 2.0           # size of one side of one panel
-    if reverse:
-        lbdim = 0.2 * factor   # size of left/bottom margin
-        trdim = 0.5 * factor   # size of top/right margin
+
+    # Create a new figure if one wasn't provided.
+
+    longest_label = 0
+    for i in range(0,K):
+        if units[i] == "":
+            label = "{}".format(labels[i])
+        else:
+            label = "{} [{}]".format(labels[i],units[i])
+        labelnew = label.replace("$","").replace("{","").replace("}","").replace("\mathrm","").replace("_","")
+        labellen = len(labelnew)
+        if labellen > longest_label:
+            longest_label = labellen
+
+
+    if fontsize == None:
+        fontsize = pl.rcParams["font.size"]
+    title_kwargs["pad"] = fontsize/5
+
+    if fig is None:
+        rf = 1.5*4.6*(fontsize/72)
+        lf = 1.5*2*(fontsize/72)
+
+        factor = 2.0           # size of one side of one panel
+        whspace = 0.05         # w/hspace size
     else:
-        lbdim = 0.5 * factor   # size of left/bottom margin
-        trdim = 0.2 * factor   # size of top/right margin
-    whspace = 0.05         # w/hspace size
+        dim = fig.get_size_inches()[0]
+
+        dfk = 3
+
+        rf = K*(dfk+2)*(fontsize/72)/dim
+        lf = K*dfk*(fontsize/72)/dim
+
+        whspace = 0
+        factor = dim/(K + lf + rf + (K - 1.)*whspace)
+
+#    print(factor,1.5*(1.0*fontsize/72), 0.8*0.85*dim/(K + lf + rf + (K - 1.)*whspace))
+
+    lentest = 0.5*longest_label*fontsize/72
+    if lentest > factor:
+        tight_fit = True
+    else:
+        tight_fit = False
+
+    if reverse:
+        lbdim = lf * factor   # size of left/bottom margin
+        trdim = rf * factor   # size of top/right margin
+    else:
+        lbdim = rf * factor   # size of left/bottom margin
+        trdim = lf * factor   # size of top/right margin
     plotdim = factor * K + factor * (K - 1.) * whspace
     dim = lbdim + plotdim + trdim
 
-    # Create a new figure if one wasn't provided.
     if fig is None:
         fig, axes = pl.subplots(K, K, figsize=(dim, dim))
     else:
@@ -289,11 +331,21 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
     # Format the figure.
     lb = lbdim / dim
     tr = (lbdim + plotdim) / dim
-    fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
-                        wspace=whspace, hspace=whspace)
+
+#    print(lb,tr,whspace,"lb,tr,whspace")
+
+    if save_lims == False:
+        labeloff = -1*(lb*dim)/factor + 1.2*(fontsize/72)/factor
+
+        fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
+                            wspace=whspace, hspace=whspace)
+
+#        print(factor/(lb*dim),-0.25*factor,labeloff,whspace,"fuck")
+
 
     if colormap is None:
-        colormap = viridis
+#        colormap = viridis
+        colormap = ['#7a3a9a', '#28ada8', '#3f86bc']
     the_cmap = colormap
 
     # Set up the default histogram keywords.
@@ -301,22 +353,37 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         hist_kwargs = dict()
 
 
-    print("we're here")
-    print(the_cmap)
-    main_fc = (the_cmap(0.5)[0]*0.5 + 0.5,the_cmap(0.5)[1]*0.5 + 0.5,the_cmap(0.5)[2]*0.5 + 0.5,1.0)
-    main_ec = the_cmap(0.5)
-    print("we made it!")
-    quit()
+    new_cmap = []
+    for j in range(0,len(the_cmap)):
+        new_cmap += [tuple(1.0*int(the_cmap[j][i:i+2], 16)/256.0 for i in (1, 3, 5))]
+#    print(new_cmap)
 
-    pr_edge = the_cmap(0)
-    pr_fill = (the_cmap(0)[0]*0.5 +0.5, the_cmap(0)[1]*0.5 +0.5, the_cmap(0)[2]*0.5 +0.5, 1.0)
+    pr_edge = new_cmap[0]
+    main_ec = new_cmap[1]
+    lk_color = new_cmap[2]
 
-    density_cmap = the_cmap.reversed()
-    my_cmap = density_cmap(np.arange(density_cmap.N))
-    my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
-    density_cmap = ListedColormap(my_cmap)
+#    print(the_cmap)
+#    print(the_cmap(0))
+#    if len(the_cmap) > 3:
+#        pr_edge = the_cmap(0)
+#        main_ec = the_cmap(0.5)
+#        lk_color = the_cmap(1.0)
+#    else:
+#        main_ec = the_cmap[0]
+#        pr_edge = the_cmap[1]
+#        lk_color = the_cmap[2]
+
+    main_fc = (main_ec[0]*0.5 + 0.5,main_ec[1]*0.5 + 0.5,main_ec[2]*0.5 + 0.5,1.0)
+
+    pr_fill = (pr_edge[0]*0.5 +0.5, pr_edge[1]*0.5 +0.5, pr_edge[2]*0.5 +0.5, 1.0)
+
+#    density_cmap = the_cmap.reversed()
+#    my_cmap = density_cmap(np.arange(density_cmap.N))
+#    my_cmap[:,-1] = np.linspace(1,0,density_cmap.N)
+#    density_cmap = ListedColormap(my_cmap)
 
     hist2d_kwargs["pr_edge"] = pr_edge
+    hist2d_kwargs["lw"] = 1
 
     # This is the color map for the density plot, over-plotted to indicate the
     # density of the points near the center.
@@ -326,8 +393,14 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
     if ptype == 1:
         al = 1.0
         mal = 0.1
-        maxcol = (the_cmap(0.5)[0]*(1-mal) + mal,the_cmap(0.5)[1]*(1-mal) + mal,the_cmap(0.5)[2]*(1-mal) + mal,(1-mal))
-        mincol = (the_cmap(0.5)[0]*(1-al) + al,the_cmap(0.5)[1]*(1-al) + al,the_cmap(0.5)[2]*(1-al) + al,(1-al))
+
+        maxcol = (main_ec[0]*(1-mal) + mal,main_ec[1]*(1-mal) + mal,main_ec[2]*(1-mal) + mal,(1-mal))
+        mincol = (main_ec[0]*(1-al) + al,main_ec[1]*(1-al) + al,main_ec[2]*(1-al) + al,(1-al))
+
+        al = 0
+        maxcol = (main_ec[0]*(1-mal) + mal,main_ec[1]*(1-mal) + mal,main_ec[2]*(1-mal) + mal,1.0)
+        mincol = (main_ec[0]*(1-al) + al,main_ec[1]*(1-al) + al,main_ec[2]*(1-al) + al,0.0)
+
         density_cmap = LinearSegmentedColormap.from_list(
             "density_cmap", [maxcol, mincol])
         point_color = main_ec
@@ -343,23 +416,29 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     hist2d_kwargs["point_color"] = point_color
 
-    prior_cmap = LinearSegmentedColormap.from_list(
-        "density_cmap", [pr_edge, (1, 1, 1, 0)])
+#    prior_cmap = LinearSegmentedColormap.from_list(
+#        "density_cmap", [pr_edge, (1, 1, 1, 0)])
 
-    pr_f2 = prior_cmap(0.3)
-    pr_f1 = prior_cmap(0.0)
+#    pr_f2 = prior_cmap(0.3)
+    tf2 = 0.5
+    pr_f2 = (pr_edge[0]*tf2 +(1.0-tf2), pr_edge[1]*tf2 +(1.0-tf2), pr_edge[2]*tf2 +(1.0-tf2), 1.0)
+
+    tf2 = 0.75
+    pr_f3 = (pr_edge[0]*tf2 +(1.0-tf2), pr_edge[1]*tf2 +(1.0-tf2), pr_edge[2]*tf2 +(1.0-tf2), 1.0)
+
+    pr_f1 = pr_edge
+#    pr_f2 = prior_cmap(0.0)
+
 
     hist_kwargs["color"] = hist_kwargs.get("color", color)
-    hist_kwargs["lw"] = 2
-    hist_kwargs["zorder"] = 2
+    hist_kwargs["lw"] = 1
+    hist_kwargs["zorder"] = 0.2
     hist_kwargs["density"] = True
     hist_kwargs["histtype"] = "stepfilled"
-    hist_kwargs["fc"] = the_cmap(0.5)[0]*0.5 + 0.5,the_cmap(0.5)[1]*0.5 + 0.5,the_cmap(0.5)[2]*0.5 + 0.5
-    hist_kwargs["ec"] = the_cmap(0.5)
+    hist_kwargs["fc"] = main_ec[0]*0.5 + 0.5,main_ec[1]*0.5 + 0.5,main_ec[2]*0.5 + 0.5
+    hist_kwargs["ec"] = main_ec
 
 #    hist_kwargs["ec"] = (0.12756799999999999, 0.56694900000000004, 0.55055600000000005, 1.0)
-
-
 
 
     if smooth1d is None:
@@ -369,7 +448,6 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
     # Set up the default histogram keywords.
     if lk_hist_kwargs is None:
         lk_hist_kwargs = dict()
-    lk_color = the_cmap(1.0)
 
     lk_color2 = (lk_color[0]*0.5+0.5, lk_color[1]*0.5+0.5, lk_color[2]*0.5+0.5, 1.0)
 
@@ -443,7 +521,8 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 if labels is not None:
                     if units is not None:
 #                        title = "{0} = {1} {2}".format(labels[i], title,units[i])
-                        title = "{1} {2}".format(labels[i], title,units[i])
+#                        title = "{1} {2}".format(labels[i], title,units[i])
+                        title = "{1}".format(labels[i], title,units[i])
                     else:
 #                        title = "{0} = {1}".format(labels[i], title)
                         title = "{1}".format(labels[i], title)
@@ -456,10 +535,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     ax.set_xlabel(title, **title_kwargs)
                 else:
                     if (len(priors) > 0) or (lk_func is not None):
-                        ax.set_title(title, **title_kwargs)
+                        ax.set_title(title,fontsize=fontsize, **title_kwargs)
                     else:
-                        axes[i][i].set_title(title, **title_kwargs)
-
+                        axes[i][i].set_title(title,fontsize=fontsize, **title_kwargs)
 
     for i, x in enumerate(xs):
         # Deal with masked arrays.
@@ -476,17 +554,17 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         # Plot the histograms.
         if smooth1d is None:
 
-            hist_kwargs["zorder"] = 3
+            hist_kwargs["zorder"] = 0.3
             n, xh, yh = ax.hist(x, bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), **hist_kwargs)
 
             hist_kwargs["histtype"] = "step"
-            hist_kwargs["zorder"] = 4
+            hist_kwargs["zorder"] = 0.4
 
             n, xh, yh = ax.hist(x, bins=bins[i], weights=weights,
                               range=np.sort(drange[i]), **hist_kwargs)
             hist_kwargs["histtype"] = "stepfilled"
-            hist_kwargs["zorder"] = 3
+            hist_kwargs["zorder"] = 0.3
 
 
         else:
@@ -500,7 +578,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
             ax.plot(x0, y0, **hist_kwargs)
 
         if truths is not None and truths[i] is not None:
-            ax.axvline(truths[i], color=truth_color,zorder=10)
+            ax.axvline(truths[i], color=truth_color,zorder=0.8,lw=1)
 
         # Plot quantiles if wanted.
         if len(quantiles) > 0:
@@ -525,21 +603,21 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
         if len(priors) > 0:
             if labels[i] != "lk":
-                ax.plot(priors[0][i],priors[1][i],color=pr_edge,zorder=-1,lw=2)
-                ax.plot(priors[0][i],priors[1][i],color=pr_edge,zorder=3,alpha=0.5,lw=2)
-                ax.fill(priors[0][i],priors[1][i],color=pr_fill,zorder=-1,lw=2)
+                ax.plot(priors[0][i],priors[1][i],color=pr_edge,zorder=-1,lw=1)
+                ax.plot(priors[0][i],priors[1][i],color=pr_edge,zorder=0.3,alpha=0.5,lw=1)
+                ax.fill(priors[0][i],priors[1][i],color=pr_fill,zorder=-1,lw=1)
 
         maxn = np.max(n)
 
         if lk_func is not None:
 
-            lk_hist_kwargs["lw"] = 2
+            lk_hist_kwargs["lw"] = 1
             nlk, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
-                              range=np.sort(drange[i]), zorder=3,**lk_hist_kwargs)
+                              range=np.sort(drange[i]), zorder=0.3,**lk_hist_kwargs)
             lk_hist_kwargs["histtype"] = "stepfilled"
             lk_hist_kwargs["color"] = lk_color2
             nlk, xh, yh = ax.hist(lk_func[:,i], bins=bins[i], weights=weights,
-                              range=np.sort(drange[i]), zorder=2,**lk_hist_kwargs)
+                              range=np.sort(drange[i]), zorder=0.2,**lk_hist_kwargs)
             lk_hist_kwargs["histtype"] = "step"
             lk_hist_kwargs["alpha"] = 1.0
             lk_hist_kwargs["color"] = lk_color
@@ -598,22 +676,31 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     if units[i] == "":
                         label = "{}".format(labels[i])
                     else:
-                        label = "{} [{}]".format(labels[i],units[i])
+                        if tight_fit == True:
+                            label = "{}\n[{}]".format(labels[i],units[i])
+                        else:
+                            label = "{} [{}]".format(labels[i],units[i])
                 else:
                     label = "{}".format(labels[i])
+                print("THIS LABEL",label)
 
                 if reverse:
-                    ax.set_title(label, y=1.25, **label_kwargs)
+                    ax.set_title(label, y=1.25, fontsize=fontsize,**label_kwargs)
                 else:
-                    ax.set_xlabel(label, **label_kwargs)
+                    if save_lims == False:
+                        ax.set_xlabel(label, **label_kwargs)
+                        ax.xaxis.set_label_coords(0.5, labeloff)
+                        if i == j:
+                            ax.xaxis.set_label_coords(0.5, labeloff)
 
             # use MathText for axes ticks
-
+            
             # important function for if there's a unit transform
             if unit_transforms[i] != []:
                 ntp = rescale(ax,"x",unit_transforms[i],use_math_text=use_math_text)
                 for jj, yy in enumerate(xs):
-                    axes[jj][i].set_xticks(ntp)
+                    if save_lims == False:
+                        axes[jj][i].set_xticks(ntp)
                 xntps2 = [ntp]
             else:
                 xntps2 = [[]]
@@ -660,14 +747,14 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         f2 = interpolate.interp1d(priors[0][i][np.isfinite(priors[0][i])], priors[1][i][np.isfinite(priors[0][i])],kind="cubic")
                         new2 = f2(rr2)
 
+                    ms = fontsize/10.0
                     if len(priors) > 0:
-                        print(hist2d_kwargs)
                         X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, drange=[drange[j], drange[i]], weights=weights,
-                               color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]],the_cmap=the_cmap,
+                               color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]],the_cmap=the_cmap,ms=ms,
                                **hist2d_kwargs)
                     else:
                         X2, Y2, H2, V, r1, r2 = hist2d(y, x, ax=ax, drange=[drange[j], drange[i]], weights=weights,
-                               color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[drange[j],drange[i]],the_cmap=the_cmap,
+                               color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[drange[j],drange[i]],the_cmap=the_cmap,ms=ms,
                                **hist2d_kwargs)
 
                     if lk_func is not None:
@@ -680,11 +767,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                         if len(priors) > 0:
                             X2_lk, Y2_lk, H2_lk, V_lk, r1_lk, r2_lk = hist2d(y_lk, x_lk, ax=ax, drange=[drange[j], drange[i]], weights=weights,
-                                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]], fill_contours=False,the_cmap=the_cmap,
+                                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[prange[j],prange[i]], fill_contours=False,the_cmap=the_cmap,ms=ms,
                                    **hist2d_kwargs)
                         else:
                             X2_lk, Y2_lk, H2_lk, V_lk, r1_lk, r2_lk = hist2d(y_lk, x_lk, ax=ax, drange=[drange[j], drange[i]], weights=weights,
-                                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[drange[j],drange[i]], fill_contours=False,the_cmap=the_cmap,
+                                   color=color, smooth=smooth, bins=[bins[j], bins[i]], hex=hex, prange=[drange[j],drange[i]], fill_contours=False,the_cmap=the_cmap,ms=ms,
                                    **hist2d_kwargs)
 
                         hist2d_kwargs["plot_contours"] = True
@@ -713,7 +800,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 #                        ax2.set_facecolor(pr_f2)
                         if (p1f == False) & (p2f == False):
 #                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],VP[1]],colors=["white"],antialiased=False)
-                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],HP2.max()*(1+1e-4)],colors=[pr_f2],antialiased=False,zorder=-1)
+                            ax2.contourf(YP2, XP2, HP2.T, [VP[0],HP2.max()*(1+1e-4)],colors=[pr_f3],antialiased=False,zorder=-2)
                             ax2.contourf(YP2, XP2, HP2.T, [VP[1],HP2.max()*(1+1e-4)],colors=[pr_f1],antialiased=False,zorder=-1)
 #                        if (p1f == True) & (p2f == True):
 #                            ax2.axvspan(xls[0],xls[1],color=prior_cmap(0.1),zorder=-1)
@@ -724,7 +811,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                             in2 = np.argmin(abs(sm-0.975))
                             in3 = np.argmin(abs(sm-0.16))
                             in4 = np.argmin(abs(sm-0.84))
-                            ax2.axvspan(rr2[in1],rr2[in2],color=pr_f2,zorder=-1)
+                            ax2.axvspan(rr2[in1],rr2[in2],color=pr_f3,zorder=-2)
                             ax2.axvspan(rr2[in3],rr2[in4],color=pr_f1,zorder=-1)
 
                         if (p1f == False) & (p2f == True):
@@ -734,7 +821,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                             in2 = np.argmin(abs(sm-0.975))
                             in3 = np.argmin(abs(sm-0.16))
                             in4 = np.argmin(abs(sm-0.84))
-                            ax2.axhspan(rr1[in1],rr1[in2],color=pr_f2,zorder=-1)
+                            ax2.axhspan(rr1[in1],rr1[in2],color=pr_f3,zorder=-2)
                             ax2.axhspan(rr1[in3],rr1[in4],color=pr_f1,zorder=-1)
 
                     # Plot the contour edge colors.
@@ -761,7 +848,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
                         V = np.append(V,H2.max())
 
-                        contour_kwargs["zorder"] = 10
+                        contour_kwargs["zorder"] = 0.8
 
                         if lk_func is not None:
                             V_lk = np.append(V_lk,H2_lk.max())
@@ -770,20 +857,21 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         if (len(priors) > 0) or (lk_func is not None) or (force_reflect == True):
                             ax2.contourf(Y2, X2, H2, V, **contour_kwargs)
 
-                        contour_kwargs_lk["zorder"] = 11
+                        contour_kwargs_lk["zorder"] = 0.9
 
                         if lk_func is not None:
                             ax2.contour(Y2_lk, X2_lk, H2_lk, V_lk, **contour_kwargs_lk)
 
-                        contour_kwargs_lk["zorder"] = 9
+                        contour_kwargs_lk["zorder"] = 0.7
 
                         contour_kwargs["colors"] = [ec,ec]
 
                     if (len(priors) == 0) and (lk_func is None):
-                        ax2.set_xticks([])
-                        ax2.set_xticklabels([])
-                        ax2.set_yticks([])
-                        ax2.set_yticklabels([])
+                        if save_lims == False:
+                            ax2.set_xticks([])
+                            ax2.set_xticklabels([])
+                            ax2.set_yticks([])
+                            ax2.set_yticklabels([])
 
                     if save_lims == False:
                         if len(prange) > 0:
@@ -815,16 +903,16 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                     xl = ax2.get_xlim()
 
                     if len(priors) > 0:
-                        ax2.axvspan(xl[0],xl[1],color=pr_f2,zorder=-1)
+                        ax2.axvspan(xl[0],xl[1],color=pr_f2,zorder=-3)
 
 
             if truths is not None:
                 if truths[i] is not None and truths[j] is not None:
-                    ax.plot(truths[j], truths[i], "s", color=truth_color,zorder=10,ms=3)
+                    ax.plot(truths[j], truths[i], "s", color=truth_color,zorder=0.9,ms=2)
                 if truths[j] is not None:
-                    ax.axvline(truths[j], color=truth_color,zorder=10,lw=1)
+                    ax.axvline(truths[j], color=truth_color,zorder=0.9,lw=1)
                 if truths[i] is not None:
-                    ax.axhline(truths[i], color=truth_color,zorder=10,lw=1)
+                    ax.axhline(truths[i], color=truth_color,zorder=0.9,lw=1)
 
             if max_n_ticks == 0:
                 ax.xaxis.set_major_locator(NullLocator())
@@ -836,38 +924,49 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                                                        prune="lower"))
 
             if i < K - 1:
-                ax.set_xticklabels([])
+                if save_lims == False:
+                    ax.set_xticklabels([])
             else:
                 if reverse:
                     ax.xaxis.tick_top()
                 [l.set_rotation(45) for l in ax.get_xticklabels()]
+
                 if labels is not None:
                     if units is not None:
                         if units[j] == "":
-                            label = "{}".format(labels[j])
+                            if tight_fit == True:
+                                label = "{}".format(labels[j])
+                            else:
+                                label = "{}".format(labels[j])
                         else:
-                            label = "{} [{}]".format(labels[j],units[j])
+                            if tight_fit == True:
+                                label = "{}\n[{}]".format(labels[j],units[j])
+                            else:
+                                label = "{} [{}]".format(labels[j],units[j])
                     else:
                         label = "{}".format(labels[j])
+                    print(label,"LABEL")
 
-                    ax.set_xlabel(label, **label_kwargs)
                     if reverse:
                         ax.xaxis.set_label_coords(0.5, 1.4)
                     else:
-                        ax.xaxis.set_label_coords(0.5, -0.3)
-                        ax.xaxis.set_label_coords(0.5, -0.4)
+                        if save_lims == False:
+                            ax.set_xlabel(label, **label_kwargs)
+                            ax.xaxis.set_label_coords(0.5, labeloff)
+                            if i == j:
+                                ax.xaxis.set_label_coords(0.5, labeloff)
 
                 # important function for if there's a unit transform
                 if unit_transforms[i] != []:
                     ntp = rescale(ax,"x",unit_transforms[j],use_math_text=use_math_text)
-                    for jj, yy in enumerate(xs):
+#                    for jj, yy in enumerate(xs):
     #                    axes[jj][j].set_xticks(ntp)
-                        if jj > K-1:
-                            if (len(priors) == 0) and (lk_func is None):
-                                ax2.set_xticks([])
-                                ax2.set_xticklabels([])
-                                ax2.set_yticks([])
-                                ax2.set_yticklabels([])
+#                        if jj > K-1:
+#                            if (len(priors) == 0) and (lk_func is None):
+#                                ax2.set_xticks([])
+#                                ax2.set_xticklabels([])
+#                                ax2.set_yticks([])
+#                                ax2.set_yticklabels([])
                     xntps += [ntp]
 
             if j > 0:
@@ -879,9 +978,15 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                 if labels is not None:
                     if units is not None:
                         if units[i] == "":
-                            label = "{}".format(labels[i])
+                            if tight_fit == True:
+                                label = "{}".format(labels[i])
+                            else:
+                                label = "{}".format(labels[i])
                         else:
-                            label = "{} [{}]".format(labels[i],units[i])
+                            if tight_fit == True:
+                                label = "{}\n[{}]".format(labels[i],units[i])
+                            else:
+                                label = "{} [{}]".format(labels[i],units[i])
                     else:
                         label = "{}".format(labels[i])
 
@@ -889,9 +994,10 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
                         ax.set_ylabel(label, rotation=-90, **label_kwargs)
                         ax.yaxis.set_label_coords(1.3, 0.5)
                     else:
-                        ax.set_ylabel(label, **label_kwargs)
-                        ax.yaxis.set_label_coords(-0.3, 0.5)
-                        ax.yaxis.set_label_coords(-0.4, 0.5)
+                        if save_lims == False:
+                            ax.set_ylabel(label, **label_kwargs)
+                            ax.yaxis.set_label_coords(labeloff, 0.5)
+
 
                 # use MathText for axes ticks
 
@@ -903,17 +1009,50 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 
     xntps += xntps2
 
+    if save_lims == False:
+        for ii, yy in enumerate(xs):
+            for jj, yy in enumerate(xs):
+                if (ii) != jj:
+                    if xntps != [[]]:
+                        axes[ii][jj].set_yticks(xntps[ii])
+                    if jj > ii-1:
+                        if (len(priors) == 0) and (lk_func is None):
+                            axes[ii][jj].set_xticks([])
+                            axes[ii][jj].set_xticklabels([])
+                            axes[ii][jj].set_yticks([])
+                            axes[ii][jj].set_yticklabels([])
+
+
+        for ii, yy in enumerate(xs):
+            for jj, yy in enumerate(xs):
+                axes[ii][jj].yaxis.set_ticks_position("both")
+
+        for ii, yy in enumerate(xs):
+            for jj, yy in enumerate(xs):
+                axes[ii][jj].xaxis.set_ticks_position("both")
+
+
     for ii, yy in enumerate(xs):
         for jj, yy in enumerate(xs):
-            if (ii) != jj:
-                if xntps != [[]]:
-                    axes[ii][jj].set_yticks(xntps[ii])
-                if jj > ii-1:
-                    if (len(priors) == 0) and (lk_func is None):
-                        axes[ii][jj].set_xticks([])
-                        axes[ii][jj].set_xticklabels([])
-                        axes[ii][jj].set_yticks([])
-                        axes[ii][jj].set_yticklabels([])
+                    axes[jj][ii].tick_params(length=fontsize*0.25,direction="in")
+                    nax1 = axes[K-1][ii].get_xticks()
+                    nli1 = axes[K-1][ii].get_xlim()
+                    nax2 = axes[K-1][jj].get_xticks()
+                    nli2 = axes[K-1][jj].get_xlim()
+
+                    in1 = (nax1 > nli1[0]) & (nax1 < nli1[1])
+                    in2 = (nax2 > nli2[0]) & (nax2 < nli2[1])
+                    nax1 = nax1[in1]
+                    nax2 = nax2[in2]
+
+                    naxl = axes[K-1][ii].get_xticklabels()
+
+                    if (ii) != jj:
+                        axes[ii][jj].set_yticks(nax1)
+
+                    for iii in range(0,K-1):
+                        axes[iii][jj].set_xticks(nax2)
+
 
 #    i = 0
 #    for j in range(1,len(xs)):
@@ -922,9 +1061,102 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
 #        sf.locs = [unit_transforms[j](c) for c in axes[j][i].get_yticks()]
 #        cl = axes[j][i].get_ylim()
 #        sf._set_format(unit_transforms[j](cl[0]),unit_transforms[j](cl[0]))
-#        new = [sf.pprint_val(c) for c in sf.locs]
+#        new = [sf.__call__(c) for c in sf.locs]
 #        axes[j][i].set_yticklabels(new)
 
+    sf = ScalarFormatter(useMathText=use_math_text)
+
+    nlabel = 1
+    for i in range(0,K):
+        for j in range(K-1,K):
+            sf.locs = axes[i][j].get_xticks()
+            sf._set_format()
+            ns = np.max([len(sf.__call__(item).strip("."))-2 for item in axes[i][j].get_xticks()])
+            if ns > nlabel:
+                nlabel = ns
+
+    # Some magic numbers for pretty axis layout.
+    K = len(xs)
+
+    # Create a new figure if one wasn't provided.
+
+    if fontsize == None:
+        fontsize = pl.rcParams["font.size"]
+
+    if fig is None:
+        rf = 1.5*4.6*(fontsize/72)
+        lf = 1.5*2*(fontsize/72)
+
+        factor = 2.0           # size of one side of one panel
+        whspace = 0.05         # w/hspace size
+    else:
+        dim = fig.get_size_inches()[0]
+
+        dfk = 0.3 + nlabel / np.sqrt(2)
+        dfk -= 1
+
+        rf = K*(dfk+2)*(fontsize/72)/dim
+        lf = K*(dfk+1)*(fontsize/72)/dim
+
+        lf = K*1.75*((fontsize)/72)/dim
+
+        if tight_fit == True:
+            rf += 1.5*K*(fontsize/72)/dim
+
+        whspace = 0
+        factor = dim/(K + lf + rf + (K - 1.)*whspace)
+
+#    print(factor,1.5*(1.0*fontsize/72), 0.8*0.85*dim/(K + lf + rf + (K - 1.)*whspace))
+
+    if reverse:
+        lbdim = lf * factor   # size of left/bottom margin
+        trdim = rf * factor   # size of top/right margin
+    else:
+        lbdim = rf * factor   # size of left/bottom margin
+        trdim = lf * factor   # size of top/right margin
+    plotdim = factor * K + factor * (K - 1.) * whspace
+    dim = lbdim + plotdim + trdim
+
+    if fig is None:
+        fig, axes = pl.subplots(K, K, figsize=(dim, dim))
+    else:
+        try:
+            if axes is None:
+                axes = np.array(fig.axes).reshape((K, K))
+        except:
+            raise ValueError("Provided figure has {0} axes, but data has "
+                             "dimensions K={1}".format(len(fig.axes), K))
+
+    # Format the figure.
+    lb = lbdim / dim
+    tr = (lbdim + plotdim) / dim
+
+#    print(lb,tr,whspace,"lb,tr,whspace")
+
+
+    if save_lims == False:
+        labeloff = -1*(lb*dim)/factor + 1.2*(fontsize/72)/factor
+
+        if tight_fit == True:
+            labeloff += (fontsize/72)/factor
+
+        fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
+                            wspace=whspace, hspace=whspace)
+
+#        print(factor/(lb*dim),-0.25*factor,labeloff,whspace,"fuck")
+
+        for i in range(0,K):
+            for j in range(0,K):
+                correct = 0.5*(fontsize/72)/factor
+                if (i==K-1) & (len(units[j]) == 0) & tight_fit == True:
+                    axes[i][j].xaxis.set_label_coords(0.5, labeloff - correct)
+                else:
+                    axes[i][j].xaxis.set_label_coords(0.5, labeloff)
+
+                if (j==0) & (len(units[i]) == 0) & tight_fit == True:
+                    axes[i][j].yaxis.set_label_coords(labeloff - correct,0.5)
+                else:
+                    axes[i][j].yaxis.set_label_coords(labeloff,0.5)
 
     return fig
 
@@ -953,9 +1185,24 @@ def rescale(ax,wh,unit_transform,use_math_text=True):
     ntv = ntv[ni]
 
     sf.locs = ntv
-    sf._set_format(ncl[0],ncl[0])
 
-    new = [sf.pprint_val(c) for c in ntv]
+    if wh == "y":
+        ax.set_ylim(ncl)
+    if wh == "x":
+        ax.set_xlim(ncl)
+
+    sf._set_format()
+
+#    sf._set_format(ncl[0],ncl[0])
+
+
+
+    new = [sf.__call__(c) for c in ntv]
+
+    if wh == "y":
+        ax.set_ylim(cl)
+    if wh == "x":
+        ax.set_xlim(cl)
 
     if wh == "y":
         ax.set_yticks(ntp)
@@ -1080,7 +1327,7 @@ def gen_contours(H,X,Y,smooth=None,levels=None):
 
 def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
            ax=None, color=None, plot_datapoints=True, plot_density=True,
-           plot_contours=True, no_fill_contours=False, fill_contours=False,
+           plot_contours=True, no_fill_contours=False, fill_contours=False,ms=2,
            hex=True, contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,the_cmap=None,pr_edge=None,point_color=None,density_cmap=None,
            **kwargs):
     """
@@ -1117,6 +1364,9 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
     fill_contours : bool
         Fill the contours.
 
+    ms : bool
+        point markersize.
+
     contour_kwargs : dict
         Any additional keyword arguments to pass to the `contour` method.
 
@@ -1142,13 +1392,14 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
             drange = [[x.min(), x.max()], [y.min(), y.max()]]
 
     # Set up the default plotting arguments.
-    if color is None:
-        color = "C1"
 
 
     # This color map is used to hide the points at the high density areas.
+
+    fc = pl.rcParams["axes.facecolor"]
+
     white_cmap = LinearSegmentedColormap.from_list(
-        "white_cmap", [(1, 1, 1), (1, 1, 1)], N=2)
+        "white_cmap", [fc, fc], N=2)
 
     # This "color map" is the list of colors for the contour levels if the
     # contours are filled.
@@ -1182,15 +1433,15 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
         data_kwargs["color"] = data_kwargs.get("color", color)
         data_kwargs["color"] = pr_edge
         data_kwargs["color"] = point_color
-        data_kwargs["ms"] = data_kwargs.get("ms", 2.0)
+        data_kwargs["ms"] = data_kwargs.get("ms", ms)
         data_kwargs["mec"] = data_kwargs.get("mec", "none")
-        data_kwargs["alpha"] = data_kwargs.get("alpha", 0.1)
+        data_kwargs["alpha"] = data_kwargs.get("alpha", 0.2)
         ax.plot(x, y, "o", zorder=-1, rasterized=True, **data_kwargs)
 
     # Plot the base fill to hide the densest data points.
     if (plot_contours or plot_density) and not no_fill_contours:
         ax.contourf(X2, Y2, H2.T, [V.min(), H.max()],
-                    cmap=white_cmap, antialiased=False)
+                    cmap=white_cmap, antialiased=False,zorder=0.5)
 
     if plot_contours and fill_contours:
         if contourf_kwargs is None:
@@ -1198,6 +1449,7 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
         contourf_kwargs["colors"] = contourf_kwargs.get("colors", contour_cmap)
         contourf_kwargs["antialiased"] = contourf_kwargs.get("antialiased",
                                                              False)
+        contourf_kwargs["zorder"] = 0.6
         ax.contourf(X2, Y2, H2.T, np.concatenate([[0], V, [H.max()*(1+1e-4)]]),
                     **contourf_kwargs)
 
@@ -1205,9 +1457,9 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
     # contour fills.
     elif plot_density:
         if hex == True:
-            hexes = ax.hexbin(x.flatten(), y.flatten(), cmap=density_cmap.reversed(),gridsize=[int(b/2) for b in bins])
+            hexes = ax.hexbin(x.flatten(), y.flatten(), cmap=density_cmap.reversed(),gridsize=[int(b/2) for b in bins],zorder=0.7,linewidths=0)
         else:
-            ax.pcolor(X, Y, H.max() - H.T, cmap=density_cmap)
+            ax.pcolor(X, Y, H.max() - H.T, cmap=density_cmap,zorder=0.7)
 
 
     # Plot the contour edge colors.
@@ -1216,6 +1468,8 @@ def hist2d(x, y, bins=20, drange=None, weights=None, levels=None, smooth=None,
             contour_kwargs = dict()
         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
         contour_kwargs["colors"] = [point_color,point_color]
+        contour_kwargs["zorder"] = 0.8
+        contour_kwargs["linewidths"] = 1.0
         ax.contour(X2, Y2, H2.T, V, **contour_kwargs)
 
     return X2, Y2, H2, V, drange[0], drange[1]

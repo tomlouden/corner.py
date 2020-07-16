@@ -301,8 +301,12 @@ def corner(xs, bins=20, drange=None, weights=None, color="C1",
         hist_kwargs = dict()
 
 
+    print("we're here")
+    print(the_cmap)
     main_fc = (the_cmap(0.5)[0]*0.5 + 0.5,the_cmap(0.5)[1]*0.5 + 0.5,the_cmap(0.5)[2]*0.5 + 0.5,1.0)
     main_ec = the_cmap(0.5)
+    print("we made it!")
+    quit()
 
     pr_edge = the_cmap(0)
     pr_fill = (the_cmap(0)[0]*0.5 +0.5, the_cmap(0)[1]*0.5 +0.5, the_cmap(0)[2]*0.5 +0.5, 1.0)

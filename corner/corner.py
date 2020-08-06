@@ -506,8 +506,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
 
                     rm = np.round(my_mode,lld)
                     re = np.round(d,lld)
-                    #print(rm,re,lld)
-                    title = "${:.{prec}f}_{{{:.{prec}f}}}^{{+{:.{prec}f}}}$".format(rm,re[0],re[1],prec=lld)
+
+                    if re[0] > re[1]:
+                        title = "${:.{prec}f}_{{{:.{prec}f}}}^{{+{:.{prec}f}}}$".format(rm,re[1],re[0],prec=lld)
+                    else:
+                        title = "${:.{prec}f}_{{{:.{prec}f}}}^{{+{:.{prec}f}}}$".format(rm,re[0],re[1],prec=lld)
                 else:
                     q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84],
                                                 weights=weights)
@@ -1075,6 +1078,17 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
             if ns > nlabel:
                 nlabel = ns
 
+    for i in range(0,K):
+        for j in range(K-1,K):
+            xl = axes[i][j].get_xlim()
+            yl = axes[i][j].get_ylim()
+            print(xl,yl)
+            if xl[1] == 360.0:
+                axes[i][j].invert_xaxis()
+            if yl[1] == 360.0:
+                axes[i][j].invert_yaxis()
+
+
     # Some magic numbers for pretty axis layout.
     K = len(xs)
 
@@ -1199,10 +1213,21 @@ def rescale(ax,wh,unit_transform,use_math_text=True):
 
     new = [sf.__call__(c) for c in ntv]
 
+    final_cl = (cl[0],cl[1])
+
+    print(final_cl,"final_cl hi!")
+    print(cl,"cl hi!")
+    print(ncl,"ncl hi!")
+
+
+#    if ncl[0] > ncl[1]:
+#        final_cl = (cl[1],cl[0])
+    print(final_cl,"2 final_cl hi!")
+
     if wh == "y":
-        ax.set_ylim(cl)
+        ax.set_ylim(final_cl)
     if wh == "x":
-        ax.set_xlim(cl)
+        ax.set_xlim(final_cl)
 
     if wh == "y":
         ax.set_yticks(ntp)
@@ -1210,6 +1235,7 @@ def rescale(ax,wh,unit_transform,use_math_text=True):
     else:
         ax.set_xticks(ntp)
         ax.set_xticklabels(new)
+
     return ntp
 
 

@@ -1134,14 +1134,18 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
 #    print(lb,tr,whspace,"lb,tr,whspace")
 
 
+
     if save_lims == False:
         labeloff = -1*(lb*dim)/factor + 1.2*(fontsize/72)/factor
 
         if tight_fit == True:
             labeloff += (fontsize/72)/factor
 
+        lb = 0.17
+        tr *=0.98
         fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
                             wspace=whspace, hspace=whspace)
+        return fig
 
 #        print(factor/(lb*dim),-0.25*factor,labeloff,whspace,"fuck")
 

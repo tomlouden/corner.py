@@ -685,7 +685,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
                             label = "{} [{}]".format(labels[i],units[i])
                 else:
                     label = "{}".format(labels[i])
-                print("THIS LABEL",label)
+#                print("THIS LABEL",label)
 
                 if reverse:
                     ax.set_title(label, y=1.25, fontsize=fontsize,**label_kwargs)
@@ -948,7 +948,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
                                 label = "{} [{}]".format(labels[j],units[j])
                     else:
                         label = "{}".format(labels[j])
-                    print(label,"LABEL")
+#                    print(label,"LABEL")
 
                     if reverse:
                         ax.xaxis.set_label_coords(0.5, 1.4)
@@ -1082,7 +1082,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
         for j in range(K-1,K):
             xl = axes[i][j].get_xlim()
             yl = axes[i][j].get_ylim()
-            print(xl,yl)
+#            print(xl,yl)
             if xl[1] == 360.0:
                 axes[i][j].invert_xaxis()
             if yl[1] == 360.0:
@@ -1095,9 +1095,9 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
     # Create a new figure if one wasn't provided.
 
 
-    print(factor,K)
+#    print(factor,K)
 
-    print(tight_fit)
+#    print(tight_fit)
 
     if fontsize == None:
         fontsize = pl.rcParams["font.size"]
@@ -1227,14 +1227,14 @@ def rescale(ax,wh,unit_transform,use_math_text=True):
 
     final_cl = (cl[0],cl[1])
 
-    print(final_cl,"final_cl hi!")
-    print(cl,"cl hi!")
-    print(ncl,"ncl hi!")
+#    print(final_cl,"final_cl hi!")
+#    print(cl,"cl hi!")
+#    print(ncl,"ncl hi!")
 
 
 #    if ncl[0] > ncl[1]:
 #        final_cl = (cl[1],cl[0])
-    print(final_cl,"2 final_cl hi!")
+#    print(final_cl,"2 final_cl hi!")
 
     if wh == "y":
         ax.set_ylim(final_cl)

@@ -282,7 +282,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
 
     if fontsize == None:
         fontsize = pl.rcParams["font.size"]
-    title_kwargs["pad"] = fontsize/5
+    title_kwargs["pad"] = fontsize/2.0
 
     if fig is None:
         rf = 1.5*4.6*(fontsize/72)
@@ -1070,11 +1070,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
     sf = ScalarFormatter(useMathText=use_math_text)
 
     nlabel = 1
-    for i in range(0,K):
-        for j in range(K-1,K):
+    for i in range(K-1,K):
+        for j in range(0,K):
             sf.locs = axes[i][j].get_xticks()
             sf._set_format()
-            ns = np.max([len(sf.__call__(item).strip("."))-2 for item in axes[i][j].get_xticks()])
+            ns = np.max([len(sf.__call__(item).strip(".").split("{")[-1].split("}")[0]) for item in axes[i][j].get_xticks()])
             if ns > nlabel:
                 nlabel = ns
 
@@ -1094,8 +1094,15 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
 
     # Create a new figure if one wasn't provided.
 
+
+    print(factor,K)
+
+    print(tight_fit)
+
     if fontsize == None:
         fontsize = pl.rcParams["font.size"]
+
+    # this is the crucial bit for getting the figure to look nice
 
     if fig is None:
         rf = 1.5*4.6*(fontsize/72)
@@ -1107,15 +1114,14 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
         dim = fig.get_size_inches()[0]
 
         dfk = 0.3 + nlabel / np.sqrt(2)
-        dfk -= 1
-
-        rf = K*(dfk+2)*(fontsize/72)/dim
-        lf = K*(dfk+1)*(fontsize/72)/dim
 
         lf = K*1.75*((fontsize)/72)/dim
 
+        rf = K*(dfk+1)*(fontsize/72)/dim
+        rf = K*(dfk)*(fontsize/72)/dim
+
         if tight_fit == True:
-            rf += 1.5*K*(fontsize/72)/dim
+            rf = K*(dfk+2.5)*(fontsize/72)/dim
 
         whspace = 0
         factor = dim/(K + lf + rf + (K - 1.)*whspace)
@@ -1129,6 +1135,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
         lbdim = rf * factor   # size of left/bottom margin
         trdim = lf * factor   # size of top/right margin
     plotdim = factor * K + factor * (K - 1.) * whspace
+
     dim = lbdim + plotdim + trdim
 
     if fig is None:
@@ -1142,6 +1149,7 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
                              "dimensions K={1}".format(len(fig.axes), K))
 
     # Format the figure.
+
     lb = lbdim / dim
     tr = (lbdim + plotdim) / dim
 
@@ -1155,11 +1163,11 @@ def corner(xs, bins=20, drange=None, weights=None, color="#ff7f0e",
         if tight_fit == True:
             labeloff += (fontsize/72)/factor
 
-        lb = 0.17
-        tr *=0.98
+#        lb=0
+#        lb = 0.17
+#        tr *=0.98
         fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
                             wspace=whspace, hspace=whspace)
-        return fig
 
 #        print(factor/(lb*dim),-0.25*factor,labeloff,whspace,"fuck")
 

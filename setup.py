@@ -2,7 +2,7 @@
 
 import os
 import sys
-from setuptools import setup
+from setuptools import setup, find_packages
 
 if sys.argv[-1] == "publish":
     os.system("python setup.py sdist bdist_wheel upload")
@@ -24,7 +24,8 @@ setup(
     author="Daniel Foreman-Mackey",
     author_email="foreman.mackey@gmail.com",
     url="https://github.com/dfm/corner.py",
-    packages=["corner"],
+    packages=["corner","posterior/posterior"],
+    
     description="Make some beautiful corner plots of samples.",
     long_description=open("README.rst").read(),
     package_data={"": ["README.rst", "LICENSE"]},

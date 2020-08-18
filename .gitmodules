@@ -1,0 +1,3 @@
+[submodule "posterior"]
+	path = posterior
+	url = https://github.com/tomlouden/posterior

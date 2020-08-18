@@ -10,7 +10,7 @@ from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter, ListedColormap
 from matplotlib.ticker import ScalarFormatter
 from scipy import interpolate
-from posterior import hpd, mode
+from .posterior.posterior import hpd, mode
 import math
 
 try:

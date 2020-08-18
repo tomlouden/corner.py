@@ -24,8 +24,8 @@ setup(
     author="Daniel Foreman-Mackey",
     author_email="foreman.mackey@gmail.com",
     url="https://github.com/dfm/corner.py",
-    packages=["corner","posterior/posterior"],
-    
+#    packages=["corner","posterior.posterior"],
+    packages=find_packages(),
     description="Make some beautiful corner plots of samples.",
     long_description=open("README.rst").read(),
     package_data={"": ["README.rst", "LICENSE"]},
